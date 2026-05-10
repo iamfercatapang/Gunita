@@ -630,120 +630,16 @@ $(document).ready(function() {
         _vgDriveSetStatus('Signed out', false);
     });
 
-    // --- Camera selection ---
-    async function populateCameraList() {
-        const diag = document.getElementById('camera-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        const sel = document.getElementById('camera-select');
-        if (!sel) return;
-        setDiag('<span style="color:#9ca3af;">Scanning for cameras…</span>');
-
-        try {
-            // Request camera permission so the browser reveals device labels.
-            try {
-                const permStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                permStream.getTracks().forEach(t => t.stop());
-            } catch (permErr) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Camera permission denied (${permErr.name}). Grant camera access in browser settings, then tap Refresh.</span>`);
-                document.getElementById('camera-select').innerHTML = '<option value="">— permission denied —</option>';
-                return;
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter(d => d.kind === 'videoinput');
-            const prevValue = appConfig.selectedCameraId || sel.value;
-
-            sel.innerHTML = '';
-            if (videoInputs.length === 0) {
-                sel.innerHTML = '<option value="">No cameras found</option>';
-                setDiag('<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> No cameras detected. Plug in your camera, then tap Refresh.</span>');
-                return;
-            }
-
-            videoInputs.forEach((cam, i) => {
-                const opt = document.createElement('option');
-                opt.value = cam.deviceId;
-                opt.textContent = cam.label || ('Camera ' + (i + 1));
-                // Auto-prefer USB/external cameras and known action cameras (DJI, GoPro, etc.)
-                const lbl = (cam.label || '').toLowerCase();
-                if (!appConfig.selectedCameraId &&
-                    (lbl.includes('usb') || lbl.includes('external') ||
-                     lbl.includes('dji') || lbl.includes('action') || lbl.includes('gopro'))) {
-                    opt.selected = true;
-                }
-                sel.appendChild(opt);
-            });
-
-            // Restore previously chosen camera if still available
-            if (prevValue && [...sel.options].some(o => o.value === prevValue)) {
-                sel.value = prevValue;
-            }
-            appConfig.selectedCameraId = sel.value;
-
-            // Build diagnostic list so user can see what the browser actually found
-            const lines = videoInputs.map((cam, i) => {
-                const lbl = cam.label || '<em style="color:#f59e0b;">no label — tap Refresh after granting camera permission</em>';
-                const shortId = cam.deviceId ? ' <span style="color:#9ca3af;font-family:monospace;font-size:0.72rem;">' + cam.deviceId.slice(0, 10) + '…</span>' : '';
-                return `<span style="display:block;">[${i + 1}] ${lbl}${shortId}</span>`;
-            }).join('');
-            const hint = videoInputs.some(c => !c.label)
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> Some cameras have no label — grant camera permission and tap Refresh.</span>'
-                : '';
-            setDiag(`<span style="font-weight:600;">${videoInputs.length} camera(s) detected:</span><span style="display:block; margin-top:2px;">${lines}</span>${hint}`);
-
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateCameraList:', e);
-        }
-    }
+    // ─── PB CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
+    // Enumeration, preview lifecycle, USB-prefer heuristic all live in
+    // window.PB.devices.
 
     $('#camera-select').on('change', function() {
         appConfig.selectedCameraId = this.value;
     });
 
-    // --- Test Camera (live preview in settings) ---
-    let _testStream = null;
-
-    function _stopCameraTest() {
-        if (_testStream) { _testStream.getTracks().forEach(t => t.stop()); _testStream = null; }
-        const pv = document.getElementById('camera-test-preview');
-        if (pv) pv.srcObject = null;
-        $('#camera-test-card').hide();
-        $('#btn-test-camera').html('<i class="fa-solid fa-play"></i> Test');
-    }
-
-    $('#btn-test-camera').on('click', async function() {
-        const btn = $(this);
-        if (_testStream) { _stopCameraTest(); return; }
-
-        btn.prop('disabled', true).text('Opening…');
-        const diag = document.getElementById('camera-diag');
-        try {
-            const deviceId = appConfig.selectedCameraId;
-            const constraints = deviceId
-                ? { video: { deviceId: { exact: deviceId } } }
-                : { video: true };
-
-            _testStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const pv = document.getElementById('camera-test-preview');
-            pv.srcObject = _testStream;
-
-            // Show resolution info once track is active
-            const track = _testStream.getVideoTracks()[0];
-            const settings = track.getSettings();
-            const info = document.getElementById('camera-test-info');
-            if (info) info.textContent = `${track.label}  ·  ${settings.width || '?'} × ${settings.height || '?'}`;
-
-            $('#camera-test-card').show();
-            btn.prop('disabled', false).html('<i class="fa-solid fa-stop"></i> Stop Test');
-        } catch (e) {
-            btn.prop('disabled', false).html('<i class="fa-solid fa-play"></i> Test');
-            const msg = `<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Could not open camera: <strong>${e.name}</strong> — ${e.message}</span>`;
-            if (diag) diag.innerHTML = msg;
-        }
-    });
-
-    $('#btn-stop-camera-test').on('click', function() { _stopCameraTest(); });
+    $('#btn-test-camera').on('click', () => window.PB.devices.toggleCameraTest('pb'));
+    $('#btn-stop-camera-test').on('click', () => window.PB.devices.stopCameraTest('pb'));
 
     // --- Video Guestbook Settings ---
     $('#setting-vg-duration').on('input', function() {
@@ -758,67 +654,7 @@ $(document).ready(function() {
         appConfig.vgPromptText = this.value;
     });
 
-    // --- VG Camera Selection ---
-    async function populateVgCameraList() {
-        const diag = document.getElementById('vg-camera-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        setDiag('<span style="color:#9ca3af;">Scanning for cameras…</span>');
-
-        try {
-            try {
-                const permStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                permStream.getTracks().forEach(t => t.stop());
-            } catch (permErr) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Camera permission denied (${permErr.name}). Grant camera access in browser settings, then tap Refresh.</span>`);
-                document.getElementById('vg-camera-select').innerHTML = '<option value="">— permission denied —</option>';
-                return;
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter(d => d.kind === 'videoinput');
-            const sel = document.getElementById('vg-camera-select');
-            const prevValue = appConfig.vgSelectedCameraId || sel.value;
-
-            sel.innerHTML = '';
-            if (videoInputs.length === 0) {
-                sel.innerHTML = '<option value="">No cameras found</option>';
-                setDiag('<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> No cameras detected. Plug in your camera, then tap Refresh.</span>');
-                return;
-            }
-
-            videoInputs.forEach((cam, i) => {
-                const opt = document.createElement('option');
-                opt.value = cam.deviceId;
-                opt.textContent = cam.label || ('Camera ' + (i + 1));
-                const lbl = (cam.label || '').toLowerCase();
-                if (!appConfig.vgSelectedCameraId &&
-                    (lbl.includes('usb') || lbl.includes('external') ||
-                     lbl.includes('dji') || lbl.includes('action') || lbl.includes('gopro'))) {
-                    opt.selected = true;
-                }
-                sel.appendChild(opt);
-            });
-
-            if (prevValue && [...sel.options].some(o => o.value === prevValue)) {
-                sel.value = prevValue;
-            }
-            appConfig.vgSelectedCameraId = sel.value;
-
-            const lines = videoInputs.map((cam, i) => {
-                const lbl = cam.label || '<em style="color:#f59e0b;">no label — tap Refresh after granting camera permission</em>';
-                const shortId = cam.deviceId ? ' <span style="color:#9ca3af;font-family:monospace;font-size:0.72rem;">' + cam.deviceId.slice(0, 10) + '…</span>' : '';
-                return `<span style="display:block;">[${i + 1}] ${lbl}${shortId}</span>`;
-            }).join('');
-            const hint = videoInputs.some(c => !c.label)
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> Some cameras have no label — grant camera permission and tap Refresh.</span>'
-                : '';
-            setDiag(`<span style="font-weight:600;">${videoInputs.length} camera(s) detected:</span><span style="display:block; margin-top:2px;">${lines}</span>${hint}`);
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateVgCameraList:', e);
-        }
-    }
-
+    // ─── VG CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
     $('#vg-camera-select').on('change', function() {
         appConfig.vgSelectedCameraId = this.value;
     });
@@ -826,138 +662,13 @@ $(document).ready(function() {
     $('#btn-refresh-vg-cameras').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateVgCameraList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateCameraList('vg').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
-    // --- VG Test Camera ---
-    let _vgTestStream = null;
+    $('#btn-test-vg-camera').on('click', () => window.PB.devices.toggleCameraTest('vg'));
+    $('#btn-stop-vg-camera-test').on('click', () => window.PB.devices.stopCameraTest('vg'));
 
-    function _stopVgCameraTest() {
-        if (_vgTestStream) { _vgTestStream.getTracks().forEach(t => t.stop()); _vgTestStream = null; }
-        const pv = document.getElementById('vg-camera-test-preview');
-        if (pv) pv.srcObject = null;
-        $('#vg-camera-test-card').hide();
-        $('#btn-test-vg-camera').html('<i class="fa-solid fa-play"></i> Test');
-    }
-
-    $('#btn-test-vg-camera').on('click', async function() {
-        const btn = $(this);
-        if (_vgTestStream) { _stopVgCameraTest(); return; }
-
-        btn.prop('disabled', true).text('Opening…');
-        const diag = document.getElementById('vg-camera-diag');
-        try {
-            const deviceId = appConfig.vgSelectedCameraId;
-            const constraints = deviceId
-                ? { video: { deviceId: { exact: deviceId } } }
-                : { video: true };
-
-            _vgTestStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const pv = document.getElementById('vg-camera-test-preview');
-            pv.srcObject = _vgTestStream;
-
-            const track = _vgTestStream.getVideoTracks()[0];
-            const settings = track.getSettings();
-            const info = document.getElementById('vg-camera-test-info');
-            if (info) info.textContent = `${track.label}  ·  ${settings.width || '?'} × ${settings.height || '?'}`;
-
-            $('#vg-camera-test-card').show();
-            btn.prop('disabled', false).html('<i class="fa-solid fa-stop"></i> Stop Test');
-        } catch (e) {
-            btn.prop('disabled', false).html('<i class="fa-solid fa-play"></i> Test');
-            const msg = `<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Could not open camera: <strong>${e.name}</strong> — ${e.message}</span>`;
-            if (diag) diag.innerHTML = msg;
-        }
-    });
-
-    $('#btn-stop-vg-camera-test').on('click', function() { _stopVgCameraTest(); });
-
-    // --- VG Audio Device Selection (Microphone & Speaker) ---
-    async function populateVgAudioDeviceList() {
-        const diag = document.getElementById('vg-audio-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        setDiag('<span style="color:#9ca3af;">Scanning for audio devices…</span>');
-
-        try {
-            // Request audio permission so browsers expose device labels.
-            let permStream = null;
-            try {
-                permStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            } catch (e) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Microphone permission denied (${e.name}). Grant microphone access in browser settings, then tap ↺ Refresh.</span>`);
-                return;
-            } finally {
-                if (permStream) permStream.getTracks().forEach(t => t.stop());
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioInputs  = devices.filter(d => d.kind === 'audioinput');
-            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-
-            // --- Microphone dropdown ---
-            const micSel = document.getElementById('vg-mic-select');
-            const prevMicVal = appConfig.vgSelectedMicId;
-            micSel.innerHTML = '<option value="">— Default microphone —</option>';
-            audioInputs.forEach((dev, i) => {
-                const opt = document.createElement('option');
-                opt.value = dev.deviceId;
-                opt.textContent = dev.label || ('Microphone ' + (i + 1));
-                micSel.appendChild(opt);
-            });
-            if (prevMicVal && [...micSel.options].some(o => o.value === prevMicVal)) {
-                micSel.value = prevMicVal;
-            }
-            appConfig.vgSelectedMicId = micSel.value;
-
-            // --- Speaker dropdown ---
-            const spkSel = document.getElementById('vg-speaker-select');
-            const prevSpkVal = appConfig.vgSelectedSpeakerId;
-            spkSel.innerHTML = '<option value="">— Default speaker —</option>';
-            if (audioOutputs.length === 0) {
-                const noDevOpt = document.createElement('option');
-                noDevOpt.value = '';
-                noDevOpt.disabled = true;
-                noDevOpt.textContent = 'No output devices found';
-                spkSel.appendChild(noDevOpt);
-            } else {
-                audioOutputs.forEach((dev, i) => {
-                    const opt = document.createElement('option');
-                    opt.value = dev.deviceId;
-                    opt.textContent = dev.label || ('Speaker ' + (i + 1));
-                    spkSel.appendChild(opt);
-                });
-            }
-            if (prevSpkVal && [...spkSel.options].some(o => o.value === prevSpkVal)) {
-                spkSel.value = prevSpkVal;
-            }
-            appConfig.vgSelectedSpeakerId = spkSel.value;
-
-            // Show "Grant Bluetooth Access" button when Chrome hides output labels (requires selectAudioOutput())
-            const hasBlankOutputLabel = audioOutputs.some(d => !d.label);
-            const grantBtn = document.getElementById('btn-grant-audio-output');
-            if (grantBtn) {
-                grantBtn.style.display =
-                    (hasBlankOutputLabel && typeof navigator.mediaDevices.selectAudioOutput === 'function')
-                    ? '' : 'none';
-            }
-
-            // Diagnostic summary
-            const inputLines  = audioInputs.map((d, i) => `<span style="display:block;">[${i + 1}] ${d.label || '<em style="color:#f59e0b;">no label</em>'}</span>`).join('');
-            const outputLines = audioOutputs.map((d, i) => `<span style="display:block;">[${i + 1}] ${d.label || '<em style="color:#f59e0b;">no label</em>'}</span>`).join('');
-            const noOutputHint = audioOutputs.length === 0
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> No audio output devices found — speaker selection not available on this browser/device.</span>'
-                : '';
-            setDiag(
-                `<span style="font-weight:600;">${audioInputs.length} mic(s) · ${audioOutputs.length} output(s) detected:</span>` +
-                (inputLines  ? `<span style="display:block; margin-top:2px;">${inputLines}</span>`  : '') +
-                (outputLines ? `<span style="display:block; margin-top:2px;">${outputLines}</span>` : '') +
-                noOutputHint
-            );
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateVgAudioDeviceList:', e);
-        }
-    }
+    // ─── VG AUDIO DEVICE SELECTION (mic + speaker) ───────────────────────────
 
     $('#vg-mic-select').on('change', function() {
         appConfig.vgSelectedMicId = this.value;
@@ -972,7 +683,7 @@ $(document).ready(function() {
     $('#btn-refresh-vg-audio').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateVgAudioDeviceList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateAudioDeviceList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
     // --- VG Storage — checkbox toggles (both local + drive can be active) ---
@@ -1009,8 +720,8 @@ $(document).ready(function() {
     });
 
     // Populate VG camera and audio device lists on load
-    populateVgCameraList();
-    populateVgAudioDeviceList();
+    window.PB.devices.populateCameraList('vg');
+    window.PB.devices.populateAudioDeviceList();
 
     // --- Advanced nav visibility ---
     function updateAdvancedNavForMode(mode) {
@@ -1099,11 +810,11 @@ $(document).ready(function() {
     $('#btn-refresh-cameras').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateCameraList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateCameraList('pb').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
     // Populate on load (non-blocking)
-    populateCameraList();
+    window.PB.devices.populateCameraList('pb');
 
     // --- Launch Kiosk ---
     // Mobile duplicate button delegates to the main launch button
@@ -1113,8 +824,7 @@ $(document).ready(function() {
         appConfig.layout = $('input[name="layout"]:checked').val();
         const launchBtn = $(this);
         launchBtn.prop('disabled', true).text('Initializing Hardware...');
-        _stopCameraTest();    // always release the test preview stream before launching
-        _stopVgCameraTest(); // also release VG test preview stream
+        window.PB.devices.stopAllCameraTests(); // release any preview streams before launching
 
         try {
         // ── getUserMedia path ─────────────────────────────────────────────
@@ -2875,7 +2585,7 @@ $(document).ready(function() {
         try {
             const device = await navigator.mediaDevices.selectAudioOutput();
             appConfig.vgSelectedSpeakerId = device.deviceId;
-            await populateVgAudioDeviceList();
+            await window.PB.devices.populateAudioDeviceList();
             // Re-select the device that was just granted
             const spkSel = document.getElementById('vg-speaker-select');
             if ([...spkSel.options].some(o => o.value === device.deviceId)) {
