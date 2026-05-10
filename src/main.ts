@@ -26,6 +26,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';
 import { GOOGLE_DRIVE_CLIENT_ID } from './constants';
+import { AudioController } from './lib/audio';
 import { DriveClient } from './lib/drive';
 import './state/app-state';
 
@@ -70,8 +71,13 @@ const driveClient = new DriveClient({
   },
 });
 
-window.PB = window.PB || {};
+// ─── AudioController instance ────────────────────────────────────────────────
+// Mic monitoring, Bluetooth-sink pre-wiring, beep playback, speaker test.
+const audioController = new AudioController();
+
+window.PB = window.PB || ({} as Window['PB']);
 window.PB.drive = driveClient;
+window.PB.audio = audioController;
 
 // Best-effort: try to flush any uploads that were queued offline last session.
 // The DriveClient also wires its own `online` listener.
