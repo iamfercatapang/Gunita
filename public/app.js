@@ -1131,7 +1131,7 @@ $(document).ready(function() {
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
                 _requestFullscreen();
-                _setupSinkBeep(appConfig.vgSelectedSpeakerId);
+                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
             } else {
                 // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
@@ -1146,7 +1146,7 @@ $(document).ready(function() {
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
                 _requestFullscreen();
-                _setupSinkBeep(appConfig.vgSelectedSpeakerId);
+                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
 
                 // Camera-lost watchdog for photo booth
@@ -1236,7 +1236,7 @@ $(document).ready(function() {
     function _doExitKiosk() {
         stopVgRecordingIfActive();
         if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
-        _teardownSinkBeep();
+        window.PB.audio.teardownSinkBeep();
         _exitFullscreen();
         $('#kiosk-mode').hide();
         $('#vg-booth').hide();
@@ -1644,98 +1644,7 @@ $(document).ready(function() {
     let _vgRecordStartTime = 0;     // wall-clock ms at which .start() was called
     let _vgActivePromptText = null; // prompt from current/last recording, preserved for redo
 
-    // Mic monitor state (reset each recording)
-    let _vgMicAudioCtx = null;
-    let _vgMicAnalyserRaf = null;
-    let _vgMicSilenceStart = null;
-    const VG_MIC_SILENCE_THRESHOLD = 0.01; // RMS below this is treated as silence
-    const VG_MIC_SILENCE_GRACE_MS  = 3000; // ms of silence before badge shows muted
-
-    function _setMicBadge(state) {
-        // state: 'ok' | 'muted' | 'none'
-        const badge = document.getElementById('vg-mic-badge');
-        const icon  = document.getElementById('vg-mic-icon');
-        const label = document.getElementById('vg-mic-label');
-        if (!badge) return;
-        badge.style.display = 'flex';
-        badge.className = state === 'ok' ? 'mic-ok' : state === 'muted' ? 'mic-muted' : 'mic-none';
-        if (state === 'ok') {
-            icon.className  = 'fa-solid fa-microphone';
-            label.textContent = 'Mic';
-        } else if (state === 'muted') {
-            icon.className  = 'fa-solid fa-microphone-slash';
-            label.textContent = 'Muted';
-        } else {
-            icon.className  = 'fa-solid fa-microphone-slash';
-            label.textContent = 'No mic';
-        }
-    }
-
-    function _stopMicMonitor() {
-        if (_vgMicAnalyserRaf) { cancelAnimationFrame(_vgMicAnalyserRaf); _vgMicAnalyserRaf = null; }
-        if (_vgMicAudioCtx)    { try { _vgMicAudioCtx.close(); } catch(e) {} _vgMicAudioCtx = null; }
-        _vgMicSilenceStart = null;
-        const badge = document.getElementById('vg-mic-badge');
-        if (badge) badge.style.display = 'none';
-    }
-
-    function _startMicMonitor(recordStream) {
-        // ── 1. Track-level checks (readyState + muted) ───────────────────
-        const audioTracks = recordStream.getAudioTracks();
-        if (audioTracks.length === 0) {
-            _setMicBadge('none');
-            return; // no audio — nothing more to monitor
-        }
-        const track = audioTracks[0];
-        if (track.readyState !== 'live' || track.muted) {
-            _setMicBadge('muted');
-        } else {
-            _setMicBadge('ok');
-        }
-
-        // System-level mute events (browser fires these when hardware disconnects
-        // or the OS mutes the device on some platforms)
-        track.onmute   = function() { _setMicBadge('muted'); };
-        track.onunmute = function() {
-            // Give the analyser a beat to confirm signal is back before going green
-            _vgMicSilenceStart = null;
-            _setMicBadge('ok');
-        };
-
-        // ── 2. Silence detection via Web Audio API ────────────────────────
-        try {
-            _vgMicAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source   = _vgMicAudioCtx.createMediaStreamSource(recordStream);
-            const analyser = _vgMicAudioCtx.createAnalyser();
-            analyser.fftSize = 512;
-            source.connect(analyser);
-            const buffer = new Float32Array(analyser.fftSize);
-
-            function checkLevel() {
-                if (!_vgMicAudioCtx) return; // monitor was stopped
-                analyser.getFloatTimeDomainData(buffer);
-                let sum = 0;
-                for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
-                const rms = Math.sqrt(sum / buffer.length);
-
-                if (rms < VG_MIC_SILENCE_THRESHOLD) {
-                    if (_vgMicSilenceStart === null) _vgMicSilenceStart = Date.now();
-                    if (Date.now() - _vgMicSilenceStart >= VG_MIC_SILENCE_GRACE_MS) {
-                        _setMicBadge('muted');
-                    }
-                } else {
-                    _vgMicSilenceStart = null;
-                    // Only flip back to OK if the track itself isn't hardware-muted
-                    if (!track.muted && track.readyState === 'live') _setMicBadge('ok');
-                }
-                _vgMicAnalyserRaf = requestAnimationFrame(checkLevel);
-            }
-            checkLevel();
-        } catch (e) {
-            // Web Audio not available — track-level badge is already set above
-            console.warn('[VG] Mic analyser unavailable:', e.message);
-        }
-    }
+    // (Mic monitor state + functions live in window.PB.audio.)
 
     // ── VG stream lifecycle ────────────────────────────────────────────────────
     // Camera and microphone are acquired only for the duration of an active
@@ -1815,7 +1724,7 @@ $(document).ready(function() {
         clearInterval(_vgTimerInterval);
         clearTimeout(_vgMaxTimer);
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
-        _stopMicMonitor();
+        window.PB.audio.stopMicMonitor();
         _vgRecordStartTime = 0;
         const ol = document.getElementById('vg-overlay-live');
         if (ol) { ol.style.display = 'none'; }
@@ -1967,7 +1876,7 @@ $(document).ready(function() {
                     currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
                     currentStream = null;
                 }
-                _teardownSinkBeep();
+                window.PB.audio.teardownSinkBeep();
                 _exitFullscreen();
                 document.getElementById('kiosk-mode').style.display = 'none';
                 document.getElementById('admin-dashboard').style.removeProperty('display');
@@ -2101,7 +2010,7 @@ $(document).ready(function() {
             cdEl.classList.remove('cd-pop');
             void cdEl.offsetWidth; // reflow to restart animation
             cdEl.classList.add('cd-pop');
-            _playBeep(i === 1 ? 880 : 660, 0.12); // countdown beep
+            window.PB.audio.beep(i === 1 ? 880 : 660, 0.12); // countdown beep
             await new Promise(r => setTimeout(r, 1000));
         }
         cdEl.style.display = 'none';
@@ -2229,7 +2138,7 @@ $(document).ready(function() {
         };
 
         _vgMediaRecorder.start(500); // collect chunks every 500ms
-        _startMicMonitor(recordStream); // begin mic activity + silence monitoring
+        window.PB.audio.startMicMonitor(recordStream); // begin mic activity + silence monitoring
         _stage = 'recording';
         $('#vg-hud').show();
         $('#vg-controls').show();
@@ -2241,7 +2150,7 @@ $(document).ready(function() {
 
         // Update HUD timer — wall-clock anchored to avoid drift on backgrounded tabs.
         _vgRecordStartTime = Date.now();
-        _playBeep(880, 0.08, 0.35); // recording-start cue (distinct from countdown beeps)
+        window.PB.audio.beep(880, 0.08, 0.35); // recording-start cue (distinct from countdown beeps)
         _vgTimerInterval = setInterval(function() {
             const elapsed = Math.floor((Date.now() - _vgRecordStartTime) / 1000);
             const mins = Math.floor(elapsed / 60);
@@ -2345,7 +2254,7 @@ $(document).ready(function() {
         clearInterval(_vgTimerInterval);
         clearTimeout(_vgMaxTimer);
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
-        _stopMicMonitor();
+        window.PB.audio.stopMicMonitor();
 
         // Reset recording state
         _vgChunks = [];
@@ -2724,10 +2633,11 @@ $(document).ready(function() {
                     playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
                 });
             };
-            // Prefer AudioContext routing (already wired at kiosk launch via _setupSinkBeep —
-            // no extra audiooutput permission required). Fall back to setSinkId for cases where
-            // the speaker was configured but AudioContext routing failed.
-            if (_previewVideoSourceNode) {
+            // Prefer AudioContext routing (already wired at kiosk launch via
+            // window.PB.audio.setupSinkBeep — no extra audiooutput permission
+            // required). Fall back to setSinkId for cases where the speaker
+            // was configured but AudioContext routing failed.
+            if (window.PB.audio.hasPreviewRouting()) {
                 _startPreviewPlay();
             } else if (appConfig.vgSelectedSpeakerId && typeof video.setSinkId === 'function') {
                 video.setSinkId(appConfig.vgSelectedSpeakerId).then(_startPreviewPlay).catch(_startPreviewPlay);
@@ -2949,123 +2859,10 @@ $(document).ready(function() {
         ctx.textBaseline = 'alphabetic';
     }
 
-    // ==================== AUDIO BEEPS ====================
-    let _audioCtx    = null;
-    let _sinkBeepCtx  = null;  // separate AudioContext whose output feeds _sinkBeepEl
-    let _sinkBeepDest = null;  // MediaStreamDestination connected to _sinkBeepEl
-    let _sinkBeepEl   = null;  // hidden Audio element with setSinkId applied to the BT speaker
-    let _previewVideoSourceNode = null; // MediaElementSource for #vg-preview-video, wired to _sinkBeepDest
-
-    function _getAudioCtx() {
-        if (!_audioCtx || _audioCtx.state === 'closed') {
-            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (_audioCtx.state === 'suspended') _audioCtx.resume();
-        return _audioCtx;
-    }
-
-    // Call once from a user-gesture context (kiosk launch) to pre-wire beep audio to the
-    // selected Bluetooth speaker. Keeps the Audio element playing silence so that subsequent
-    // oscillator connections route instantly without needing another gesture.
-    function _setupSinkBeep(sinkId) {
-        if (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') {
-            _sinkBeepCtx.close().catch(() => {});
-        }
-        _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-        if (!sinkId || typeof Audio === 'undefined' || typeof Audio.prototype.setSinkId === 'undefined') return;
-        try {
-            _sinkBeepCtx  = new (window.AudioContext || window.webkitAudioContext)();
-            _sinkBeepDest = _sinkBeepCtx.createMediaStreamDestination();
-            _sinkBeepEl   = new Audio();
-            _sinkBeepEl.srcObject = _sinkBeepDest.stream;
-            _sinkBeepEl.setSinkId(sinkId)
-                .then(() => {
-                    _sinkBeepEl.play().catch(() => {});
-                    // Route the capture-review video through the same BT sink.
-                    // createMediaElementSource silences the element's native output and
-                    // sends audio through _sinkBeepDest → _sinkBeepEl → JBL speaker,
-                    // bypassing the OS default output (which may be the USB mic device).
-                    const previewVid = document.getElementById('vg-preview-video');
-                    if (previewVid && _sinkBeepCtx && _sinkBeepCtx.state !== 'closed') {
-                        try {
-                            _previewVideoSourceNode = _sinkBeepCtx.createMediaElementSource(previewVid);
-                            _previewVideoSourceNode.connect(_sinkBeepDest);
-                        } catch (e) {
-                            console.warn('[VG] Preview video audio routing error:', e.message);
-                        }
-                    }
-                })
-                .catch(() => {
-                    // Permission not granted for this deviceId — fall back to default output
-                    _sinkBeepCtx.close().catch(() => {});
-                    _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null; _previewVideoSourceNode = null;
-                });
-        } catch (e) {
-            _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-        }
-    }
-
-    function _teardownSinkBeep() {
-        if (_previewVideoSourceNode) { try { _previewVideoSourceNode.disconnect(); } catch (_) {} }
-        _previewVideoSourceNode = null;
-        if (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') _sinkBeepCtx.close().catch(() => {});
-        _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-    }
-
-    function _playBeep(freq, duration, volume) {
-        try {
-            // Route through the pre-wired Bluetooth sink when available; otherwise default output.
-            const ctx  = (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') ? _sinkBeepCtx  : _getAudioCtx();
-            const dest = (ctx === _sinkBeepCtx && _sinkBeepDest)           ? _sinkBeepDest : ctx.destination;
-            const osc  = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(dest);
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(volume || 0.45, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + duration);
-        } catch (e) { /* audio not available */ }
-    }
-
-    // Play a short 880 Hz tone through the given audio output device (or default if sinkId is empty).
-    // Routes via a hidden Audio element so setSinkId() can override Android's default routing
-    // (needed when a USB mic is connected and Android steals default audio output away from Bluetooth).
-    function _testSpeakerOutput(sinkId) {
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            const ctx = new AudioCtx();
-            const dest = ctx.createMediaStreamDestination();
-            const osc  = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(dest);
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            gain.gain.setValueAtTime(0.4, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
-
-            const el = new Audio();
-            el.srcObject = dest.stream;
-            const startPlay = () => {
-                el.play().catch(() => {});
-                setTimeout(() => { el.srcObject = null; ctx.close(); }, 1200);
-            };
-            if (sinkId && typeof el.setSinkId === 'function') {
-                el.setSinkId(sinkId).then(startPlay).catch(startPlay);
-            } else {
-                startPlay();
-            }
-        } catch (e) { /* audio not available */ }
-    }
+    // (Audio beeps, BT sink routing, and speaker test live in window.PB.audio.)
 
     $('#btn-test-speaker').on('click', function() {
-        _testSpeakerOutput(appConfig.vgSelectedSpeakerId);
+        window.PB.audio.testSpeakerOutput(appConfig.vgSelectedSpeakerId);
     });
 
     $('#btn-grant-audio-output').on('click', async function() {
@@ -3105,7 +2902,7 @@ $(document).ready(function() {
             overlay.removeClass('active').hide();
             void overlay[0].offsetWidth;
             overlay.text(count).show();
-            _playBeep(count === 1 ? 880 : 660, 0.12); // beep on initial display
+            window.PB.audio.beep(count === 1 ? 880 : 660, 0.12); // beep on initial display
             requestAnimationFrame(() => overlay.addClass('active'));
             
             const interval = setInterval(() => {
@@ -3114,11 +2911,11 @@ $(document).ready(function() {
                     overlay.removeClass('active');
                     void overlay[0].offsetWidth; 
                     overlay.text(count).addClass('active');
-                    _playBeep(count === 1 ? 880 : 660, 0.12); // beep on each number
+                    window.PB.audio.beep(count === 1 ? 880 : 660, 0.12); // beep on each number
                 } else {
                     clearInterval(interval);
                     overlay.removeClass('active');
-                    _playBeep(1100, 0.08); // shutter beep
+                    window.PB.audio.beep(1100, 0.08); // shutter beep
                     // Resolve only AFTER hide so next countdown never races with this one
                     setTimeout(() => { overlay.hide(); resolve(); }, 250);
                 }

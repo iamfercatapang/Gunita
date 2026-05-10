@@ -4,6 +4,7 @@
 // globals visible to TypeScript without forcing a rewrite of app.js.
 
 import type { LayoutDef, PaperSize, PromptTemplates } from '../constants';
+import type { AudioController } from '../lib/audio';
 import type { DriveClient } from '../lib/drive';
 import type { AppConfig } from '../state/app-state';
 
@@ -43,6 +44,7 @@ declare global {
     // Typed library namespace (populated by main.ts).
     PB: {
       drive: DriveClient;
+      audio: AudioController;
     };
   }
 }
