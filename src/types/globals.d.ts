@@ -4,6 +4,7 @@
 // globals visible to TypeScript without forcing a rewrite of app.js.
 
 import type { LayoutDef, PaperSize, PromptTemplates } from '../constants';
+import type { DriveClient } from '../lib/drive';
 import type { AppConfig } from '../state/app-state';
 
 declare global {
@@ -38,5 +39,10 @@ declare global {
     jQuery: typeof import('jquery');
     Peer: typeof import('peerjs').Peer;
     QRCode: unknown; // qrcodejs is vendored as a non-module script
+
+    // Typed library namespace (populated by main.ts).
+    PB: {
+      drive: DriveClient;
+    };
   }
 }

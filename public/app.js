@@ -1,10 +1,3 @@
-// Returns the active Client ID: UI input field takes priority, falls back to the hardcoded constant
-function _getDriveClientId() {
-    const el = document.getElementById('drive-client-id');
-    const inputVal = el ? el.value.trim() : '';
-    return inputVal || GOOGLE_DRIVE_CLIENT_ID;
-}
-
 // --- Filename generator: eventName_YYYYMMDD_HHMMSS.png ---
 function makeFilename() {
     const now = new Date();
@@ -584,364 +577,45 @@ $(document).ready(function() {
     }
 
     // =====================================================================
-    // GOOGLE DRIVE — Method A (Browser OAuth via Google Identity Services)
+    // GOOGLE DRIVE — handled by window.PB.drive (src/lib/drive)
     // =====================================================================
+    // The unified DriveClient owns OAuth, folder caching, upload retry,
+    // bounded concurrency, and an IndexedDB-backed offline queue.
+    // The UI handlers below thinly wrap that client.
 
-    const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    // (Folder/event/session-folder management lives in window.PB.drive.)
 
-    function _driveSetStatus(msg, isError) {
-        const el = document.getElementById('drive-auth-status');
-        if (!el) return;
-        el.innerHTML = msg;
-        el.style.color = isError ? '#ef4444' : '#16a34a';
-    }
-
-    // Request an access token via the GIS token client
-    function _driveRequestToken() {
-        return new Promise((resolve, reject) => {
-            const clientId = _getDriveClientId();
-            if (!clientId || clientId.startsWith('YOUR_CLIENT')) {
-                reject(new Error('No Client ID configured.'));
-                return;
-            }
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: DRIVE_SCOPES,
-                callback: (resp) => {
-                    if (resp.error) { reject(new Error(resp.error)); return; }
-                    appConfig._driveAccessToken = resp.access_token;
-                    appConfig._driveFolderId = null; // reset folder cache on new token
-                    resolve(resp.access_token);
-                }
-            });
-            client.requestAccessToken({ prompt: '' });
-        });
-    }
-
-    // Delegate to VG auth — single shared token for both PB and VG
-    async function _driveEnsureToken() {
-        return _vgDriveEnsureToken();
-    }
-
-    // Find or create the root PB folder; returns folderId
-    async function _driveEnsureFolder(token) {
-        if (appConfig._driveFolderId) return appConfig._driveFolderId;
-        const folderName = appConfig.driveFolderName || 'Photo Booth Captures';
-        // Search for existing folder
-        const query = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g,"\\'")}' and trashed=false`);
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._driveFolderId = searchData.files[0].id;
-            return appConfig._driveFolderId;
-        }
-        // Create the root folder
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
-        });
-        const folder = await createResp.json();
-        appConfig._driveFolderId = folder.id;
-        return folder.id;
-    }
-
-    // Find or create the event sub-folder inside the root PB folder; returns its folderId
-    async function _driveEnsureEventFolder(token) {
-        if (appConfig._driveEventFolderId) return appConfig._driveEventFolderId;
-        const parentId = await _driveEnsureFolder(token);
-        const subName = appConfig.eventName ? appConfig.eventName.trim() : 'Default Event';
-        const query = encodeURIComponent(
-            `mimeType='application/vnd.google-apps.folder' and name='${subName.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`
-        );
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._driveEventFolderId = searchData.files[0].id;
-            return appConfig._driveEventFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: subName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-        });
-        const sub = await createResp.json();
-        appConfig._driveEventFolderId = sub.id;
-        return sub.id;
-    }
-
-    // Create a session-specific sub-folder inside the event folder; returns folder object with id and webViewLink
-    async function _driveEnsureSessionFolder(token) {
-        // If session folder already created for this session, return cached values
-        if (currentSessionFolderId && currentSessionFolderLink) {
-            return { id: currentSessionFolderId, webViewLink: currentSessionFolderLink };
-        }
-
-        // Ensure we have a session ID
-        if (!currentSessionId) {
-            startNewSession();
-        }
-
-        const eventFolderId = await _driveEnsureEventFolder(token);
-        const sessionFolderName = currentSessionId;
-
-        // Create the session folder (don't search, always create new)
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: sessionFolderName,
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [eventFolderId]
-            })
-        });
-        const sessionFolder = await createResp.json();
-
-        // Set public permissions on the session folder
-        await _driveSetPublic(token, sessionFolder.id);
-
-        // Cache the session folder ID and link
-        currentSessionFolderId = sessionFolder.id;
-        currentSessionFolderLink = sessionFolder.webViewLink;
-
-        console.log('[Drive] Created session folder:', sessionFolderName, sessionFolder.webViewLink);
-        return sessionFolder;
-    }
-
-    // Upload a Blob to Drive inside the session sub-folder
-    async function uploadToDrive(blob, filename) {
-        try {
-            const token = await _driveEnsureToken();
-            const sessionFolder = await _driveEnsureSessionFolder(token);
-            const meta = JSON.stringify({ name: filename, parents: [sessionFolder.id] });
-            const form = new FormData();
-            form.append('metadata', new Blob([meta], { type: 'application/json' }));
-            form.append('file', blob, filename);
-            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token },
-                body: form
-            });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                // Token may have expired — clear shared VG token and retry once
-                if (resp.status === 401) {
-                    appConfig._vgDriveAccessToken = null;
-                    const token2 = await _driveEnsureToken();
-                    const form2 = new FormData();
-                    form2.append('metadata', new Blob([meta], { type: 'application/json' }));
-                    form2.append('file', blob, filename);
-                    const resp2 = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                        method: 'POST',
-                        headers: { Authorization: 'Bearer ' + token2 },
-                        body: form2
-                    });
-                    if (!resp2.ok) throw new Error('Drive upload failed after retry');
-                    return resp2.json();
-                }
-                throw new Error((err.error && err.error.message) || 'Drive upload failed');
-            }
-            return resp.json();
-        } catch (e) {
-            console.warn('[Drive] Upload error:', e.message);
-            throw e;
-        }
-    }
-
-    // Upload a video blob using the VG-specific Drive credentials into the session sub-folder
-    async function uploadVgToDrive(blob, filename) {
-        try {
-            const token = await _vgDriveEnsureToken();
-            const sessionFolder = await _vgDriveEnsureSessionFolder(token);
-            const mimeType = blob.type || 'video/webm';
-            const meta = JSON.stringify({ name: filename, parents: [sessionFolder.id] });
-            const form = new FormData();
-            form.append('metadata', new Blob([meta], { type: 'application/json' }));
-            form.append('file', blob, filename);
-            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token },
-                body: form
-            });
-            if (!resp.ok) {
-                if (resp.status === 401) {
-                    appConfig._vgDriveAccessToken = null;
-                    const token2 = await _vgDriveEnsureToken();
-                    const form2 = new FormData();
-                    form2.append('metadata', new Blob([meta], { type: 'application/json' }));
-                    form2.append('file', blob, filename);
-                    const resp2 = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                        method: 'POST',
-                        headers: { Authorization: 'Bearer ' + token2 },
-                        body: form2
-                    });
-                    if (!resp2.ok) throw new Error('Drive VG upload failed after retry');
-                    return resp2.json();
-                }
-                throw new Error('Drive VG upload failed');
-            }
-            return resp.json();
-        } catch (e) {
-            console.warn('[Drive] VG upload error:', e.message);
-            throw e;
-        }
-    }
-
-    // PB Drive auth is shared with VG — sign-in handled in Capture Settings
-
-    // ─── VIDEO GUESTBOOK — INDEPENDENT GOOGLE DRIVE AUTH ──────────────────────
-
-    function _getVgDriveClientId() {
-        const el = document.getElementById('vg-drive-client-id');
-        const inputVal = el ? el.value.trim() : '';
-        // Fall back to VG config, then PB config, then the hardcoded constant
-        return inputVal || appConfig.vgDriveClientId || _getDriveClientId();
-    }
+    // ─── DRIVE UI HANDLERS ────────────────────────────────────────────────────
+    // Folder/event/session creation, OAuth, retry, offline queue all live in
+    // window.PB.drive (src/lib/drive). The handlers here just wire DOM inputs
+    // to that client and update the local status banner.
 
     function _vgDriveSetStatus(msg, isErr = false) {
         const el = document.getElementById('vg-drive-auth-status');
         if (el) { el.innerHTML = msg; el.style.color = isErr ? '#dc2626' : '#6b7280'; }
     }
 
-    async function _vgDriveRequestToken() {
-        return new Promise((resolve, reject) => {
-            const clientId = _getVgDriveClientId();
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: (response) => {
-                    if (response.error) { reject(new Error(response.error)); return; }
-                    appConfig._vgDriveAccessToken = response.access_token;
-                    resolve(response.access_token);
-                }
-            });
-            client.requestAccessToken();
-        });
-    }
-
-    async function _vgDriveEnsureToken() {
-        if (appConfig._vgDriveAccessToken) return appConfig._vgDriveAccessToken;
-        return _vgDriveRequestToken();
-    }
-
-    async function _vgDriveEnsureFolder(token) {
-        if (appConfig._vgDriveFolderId) return appConfig._vgDriveFolderId;
-        const folderName = appConfig.vgDriveFolderName || 'Video Guestbook Captures';
-        const query = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g,"\\'")}' and trashed=false`);
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._vgDriveFolderId = searchData.files[0].id;
-            return appConfig._vgDriveFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
-        });
-        const folder = await createResp.json();
-        appConfig._vgDriveFolderId = folder.id;
-        return folder.id;
-    }
-
-    // Find or create the event sub-folder inside the root VG folder; returns its folderId
-    async function _vgDriveEnsureEventFolder(token) {
-        if (appConfig._vgDriveEventFolderId) return appConfig._vgDriveEventFolderId;
-        const parentId = await _vgDriveEnsureFolder(token);
-        const subName = appConfig.eventName ? appConfig.eventName.trim() : 'Default Event';
-        const query = encodeURIComponent(
-            `mimeType='application/vnd.google-apps.folder' and name='${subName.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`
-        );
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._vgDriveEventFolderId = searchData.files[0].id;
-            return appConfig._vgDriveEventFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: subName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-        });
-        const sub = await createResp.json();
-        appConfig._vgDriveEventFolderId = sub.id;
-        return sub.id;
-    }
-
-    // Create a session-specific sub-folder for VG inside the event folder; returns folder object with id and webViewLink
-    async function _vgDriveEnsureSessionFolder(token) {
-        // If session folder already created for this session, return cached values
-        if (currentSessionFolderId && currentSessionFolderLink) {
-            return { id: currentSessionFolderId, webViewLink: currentSessionFolderLink };
-        }
-
-        // Ensure we have a session ID
-        if (!currentSessionId) {
-            startNewSession();
-        }
-
-        const eventFolderId = await _vgDriveEnsureEventFolder(token);
-        const sessionFolderName = currentSessionId;
-
-        // Create the session folder (don't search, always create new)
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: sessionFolderName,
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [eventFolderId]
-            })
-        });
-        const sessionFolder = await createResp.json();
-
-        // Set public permissions on the session folder
-        await _driveSetPublic(token, sessionFolder.id);
-
-        // Cache the session folder ID and link
-        currentSessionFolderId = sessionFolder.id;
-        currentSessionFolderLink = sessionFolder.webViewLink;
-
-        console.log('[Drive VG] Created session folder:', sessionFolderName, sessionFolder.webViewLink);
-        return sessionFolder;
-    }
-
-    // UI: VG Drive folder name input
     $('#vg-drive-folder-name').on('input', function() {
         appConfig.vgDriveFolderName = this.value.trim() || 'Video Guestbook Captures';
-        appConfig._vgDriveFolderId = null; // reset folder cache
+        window.PB.drive.invalidateFolders('video-guestbook');
     });
 
-    // UI: VG Drive client ID input
     $('#vg-drive-client-id').on('input', function() {
         appConfig.vgDriveClientId = this.value.trim();
-        appConfig._vgDriveAccessToken = null;
-        appConfig._vgDriveFolderId = null;
+        window.PB.drive.signOut();
     });
 
-    // UI: VG Drive sign-in
     $('#btn-vg-drive-signin').on('click', async function() {
         const btn = $(this);
-        const clientId = _getVgDriveClientId();
-        if (!clientId || clientId.startsWith('YOUR_CLIENT')) {
-            _vgDriveSetStatus('Enter your Client ID above first.', true);
-            return;
-        }
         btn.prop('disabled', true).text('Signing in…');
         _vgDriveSetStatus('');
         try {
-            await _vgDriveRequestToken();
-            _vgDriveSetStatus('<i class="fa-solid fa-check"></i> Connected — videos will upload automatically', false);
+            await window.PB.drive.getToken({ forcePrompt: true });
+            _vgDriveSetStatus('<i class="fa-solid fa-check"></i> Connected — captures will upload automatically', false);
             btn.hide();
             $('#btn-vg-drive-signout').show();
+            // Best-effort: flush any uploads that queued offline last session.
+            window.PB.drive.flushQueue().catch(() => {});
         } catch (e) {
             _vgDriveSetStatus('Sign-in failed: ' + e.message, true);
         } finally {
@@ -949,19 +623,12 @@ $(document).ready(function() {
         }
     });
 
-    // UI: VG Drive sign-out
     $('#btn-vg-drive-signout').on('click', function() {
-        if (appConfig._vgDriveAccessToken) {
-            google.accounts.oauth2.revoke(appConfig._vgDriveAccessToken, () => {});
-        }
-        appConfig._vgDriveAccessToken = null;
-        appConfig._vgDriveFolderId = null;
+        window.PB.drive.signOut();
         $(this).hide();
         $('#btn-vg-drive-signin').show();
         _vgDriveSetStatus('Signed out', false);
     });
-
-    // ──────────────────────────────────────────────────────────────────────────
 
     // --- Camera selection ---
     async function populateCameraList() {
@@ -1855,20 +1522,7 @@ $(document).ready(function() {
         });
     })();
 
-    // ==================== DRIVE: SET FILE PUBLIC ====================
-    // Makes a Drive file readable by anyone with the link (so QR scan works)
-    async function _driveSetPublic(token, fileId) {
-        try {
-            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'reader', type: 'anyone' })
-            });
-        } catch (e) {
-            console.warn('[Drive] Could not set public permission:', e.message);
-        }
-    }
-    // ===============================================================
+    // (DRIVE: making session folders public is handled by window.PB.drive.)
 
     // ===============================================================
 
@@ -2760,15 +2414,12 @@ $(document).ready(function() {
             }
         }
 
-        // Upload to Google Drive using VG-specific credentials if enabled
-        if (appConfig.vgSaveDrive && _getVgDriveClientId() && !_getVgDriveClientId().startsWith('YOUR_CLIENT')) {
-            uploadVgToDrive(blob, filename).then(async result => {
-                // The session folder link is already set after creating the folder
+        // Upload to Google Drive (queues offline if the network drops).
+        if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
+            window.PB.drive.upload('video-guestbook', blob, filename).then(() => {
                 if (currentSessionFolderLink) {
-                    // Store session folder link in gallery for admin view
                     capturedVideoDriveLinks[0] = currentSessionFolderLink;
                     _appendGalleryQrBtn(0, 'video', currentSessionFolderLink);
-                    // Notify live viewer peers
                     lvBroadcastDriveUpdate(filename, currentSessionFolderLink);
                 }
             }).catch(e => console.warn('[Drive] VG upload failed:', e.message));
@@ -2818,7 +2469,7 @@ $(document).ready(function() {
         }
 
         // Offer Drive QR code (VG mode: guest declined PB or PB not enabled)
-        if (appConfig.vgSaveDrive && appConfig._vgDriveAccessToken) {
+        if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
             await showDriveQrPrompt();
         }
 
@@ -3185,13 +2836,12 @@ $(document).ready(function() {
         // Broadcast to Live Viewer peers (fire-and-forget)
         lvBroadcastPhoto(photoDataUrl, filename);
 
-        // --- Upload to Google Drive (fire-and-forget, non-blocking) ---
-        if (appConfig.saveDrive && _getVgDriveClientId() && !_getVgDriveClientId().startsWith('YOUR_CLIENT')) {
+        // --- Upload to Google Drive (fire-and-forget; queues offline if needed) ---
+        if (appConfig.saveDrive && window.PB.drive.isSignedIn()) {
             canvas.toBlob(async function(blob) {
                 try {
-                    const result = await uploadToDrive(blob, filename);
+                    await window.PB.drive.upload('photo-booth', blob, filename);
                     console.log('[Drive] Uploaded:', filename);
-                    // Store session folder link in gallery for admin view
                     if (currentSessionFolderLink) {
                         capturedPhotoDriveLinks[0] = currentSessionFolderLink;
                         _appendGalleryQrBtn(0, 'photo', currentSessionFolderLink);
@@ -3208,7 +2858,7 @@ $(document).ready(function() {
         const previewMs = Math.max(appConfig.reviewTime * 1000, 1000);
         setTimeout(async () => {
             // Offer Drive QR code for VG→PB sessions (guest chose photo strip after video)
-            if (opts.continueSession && appConfig.vgSaveDrive && appConfig._vgDriveAccessToken) {
+            if (opts.continueSession && appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
                 await showDriveQrPrompt();
             }
             if (appConfig.vgThankYouEnabled) {
@@ -3705,9 +3355,10 @@ $(document).ready(function() {
     $('#event-name-input').on('input', function() {
         appConfig.eventName = this.value.trim();
         $('#event-name-input').val(appConfig.eventName);
-        // Reset event sub-folder cache so the new name creates a fresh sub-folder
-        appConfig._driveEventFolderId = null;
-        appConfig._vgDriveEventFolderId = null;
+        // Drive client invalidates its event-folder cache automatically when
+        // it next reads the event name; tell it now so any in-flight session
+        // folder is also reset.
+        window.PB.drive.invalidateFolders();
         _updateFilenamePreview();
         _updateEventNameWarnings();
     });
