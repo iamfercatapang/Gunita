@@ -5,6 +5,7 @@
 
 import type { LayoutDef, PaperSize, PromptTemplates } from '../constants';
 import type { AudioController } from '../lib/audio';
+import type { DeviceManager } from '../lib/devices';
 import type { DriveClient } from '../lib/drive';
 import type { AppConfig } from '../state/app-state';
 
@@ -45,6 +46,7 @@ declare global {
     PB: {
       drive: DriveClient;
       audio: AudioController;
+      devices: DeviceManager;
     };
   }
 }

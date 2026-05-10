@@ -27,6 +27,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './constants';
 import { GOOGLE_DRIVE_CLIENT_ID } from './constants';
 import { AudioController } from './lib/audio';
+import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
 import './state/app-state';
 
@@ -75,9 +76,30 @@ const driveClient = new DriveClient({
 // Mic monitoring, Bluetooth-sink pre-wiring, beep playback, speaker test.
 const audioController = new AudioController();
 
+// ─── DeviceManager instance ──────────────────────────────────────────────────
+// Camera + audio device enumeration, camera test-preview lifecycle.
+// Deps wrap appConfig so the manager never imports state directly.
+const deviceManager = new DeviceManager({
+  getCameraId: (role) =>
+    role === 'pb' ? window.appConfig.selectedCameraId : window.appConfig.vgSelectedCameraId,
+  setCameraId: (role, id) => {
+    if (role === 'pb') window.appConfig.selectedCameraId = id;
+    else window.appConfig.vgSelectedCameraId = id;
+  },
+  getMicId: () => window.appConfig.vgSelectedMicId,
+  setMicId: (id) => {
+    window.appConfig.vgSelectedMicId = id;
+  },
+  getSpeakerId: () => window.appConfig.vgSelectedSpeakerId,
+  setSpeakerId: (id) => {
+    window.appConfig.vgSelectedSpeakerId = id;
+  },
+});
+
 window.PB = window.PB || ({} as Window['PB']);
 window.PB.drive = driveClient;
 window.PB.audio = audioController;
+window.PB.devices = deviceManager;
 
 // Best-effort: try to flush any uploads that were queued offline last session.
 // The DriveClient also wires its own `online` listener.
