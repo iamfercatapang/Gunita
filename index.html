@@ -9,17 +9,17 @@
                    media-src * blob: data:;
                    connect-src * http: https:;">
     <title>Photo Booth - Admin Dashboard & Clean Review</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <!-- Google Identity Services (for Drive OAuth) -->
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="manifest" href="./manifest.json">
+
+    <!-- Bundled entry: jQuery, PeerJS, FontAwesome, Inter font, typed state + constants. -->
+    <script type="module" src="/src/main.ts"></script>
+
+    <!-- Google Identity Services — must remain external (OAuth requires Google's domain). -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-    <!-- PeerJS (WebRTC) — for Live Gallery Viewer feature -->
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
-    <!-- QR Code generator (used by Live Viewer) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- QR Code generator (vendored locally for offline use). -->
+    <script src="./vendor/qrcode.min.js" defer></script>
 </head>
 <body>
 
@@ -1474,10 +1474,9 @@
 
     <!-- ======================================= -->
 
-    <script src="pb-constants.js"></script>
-    <script src="pb-state.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="app.js"></script>
+    <!-- Legacy app.js — non-module script that consumes the window globals
+         set by /src/main.ts. Will be split into modules in Phase 2. -->
+    <script src="./app.js" defer></script>
 
     <!-- ========== PHOTO / VIDEO LIGHTBOX ========== -->
     <div id="photo-lightbox" class="lightbox-overlay" style="display:none;">

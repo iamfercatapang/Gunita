@@ -7,14 +7,23 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "ignore": ["dist/**", "node_modules/**", "public/app.js", "Assets/**", "web-coder/**"]
+    "ignore": [
+      "dist/**",
+      "node_modules/**",
+      "public/**",
+      "Assets/**",
+      "web-coder/**",
+      "index.html",
+      "styles.css",
+      "manifest.json"
+    ]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 100,
-    "lineEnding": "lf"
+    "lineEnding": "crlf"
   },
   "javascript": {
     "formatter": {
