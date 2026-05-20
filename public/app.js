@@ -1,24 +1,6 @@
-// Returns the active Client ID: UI input field takes priority, falls back to the hardcoded constant
-function _getDriveClientId() {
-    const el = document.getElementById('drive-client-id');
-    const inputVal = el ? el.value.trim() : '';
-    return inputVal || GOOGLE_DRIVE_CLIENT_ID;
-}
-
-// --- Filename generator: eventName_YYYYMMDD_HHMMSS.png ---
-function makeFilename() {
-    const now = new Date();
-    const ts = now.getFullYear()
-        + String(now.getMonth() + 1).padStart(2, '0')
-        + String(now.getDate()).padStart(2, '0')
-        + '_'
-        + String(now.getHours()).padStart(2, '0')
-        + String(now.getMinutes()).padStart(2, '0')
-        + String(now.getSeconds()).padStart(2, '0');
-    const prefix = appConfig.eventName
-        ? appConfig.eventName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
-        : 'photobooth';
-    return `${prefix}_${ts}.png`;
+// --- Filename generator (thin wrapper around window.PB.capture.makeFilename) ---
+function makeFilename(ext = 'png') {
+    return window.PB.capture.makeFilename(appConfig.eventName, ext);
 }
 
 
@@ -584,364 +566,45 @@ $(document).ready(function() {
     }
 
     // =====================================================================
-    // GOOGLE DRIVE — Method A (Browser OAuth via Google Identity Services)
+    // GOOGLE DRIVE — handled by window.PB.drive (src/lib/drive)
     // =====================================================================
+    // The unified DriveClient owns OAuth, folder caching, upload retry,
+    // bounded concurrency, and an IndexedDB-backed offline queue.
+    // The UI handlers below thinly wrap that client.
 
-    const DRIVE_SCOPES = 'https://www.googleapis.com/auth/drive.file';
+    // (Folder/event/session-folder management lives in window.PB.drive.)
 
-    function _driveSetStatus(msg, isError) {
-        const el = document.getElementById('drive-auth-status');
-        if (!el) return;
-        el.innerHTML = msg;
-        el.style.color = isError ? '#ef4444' : '#16a34a';
-    }
-
-    // Request an access token via the GIS token client
-    function _driveRequestToken() {
-        return new Promise((resolve, reject) => {
-            const clientId = _getDriveClientId();
-            if (!clientId || clientId.startsWith('YOUR_CLIENT')) {
-                reject(new Error('No Client ID configured.'));
-                return;
-            }
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: DRIVE_SCOPES,
-                callback: (resp) => {
-                    if (resp.error) { reject(new Error(resp.error)); return; }
-                    appConfig._driveAccessToken = resp.access_token;
-                    appConfig._driveFolderId = null; // reset folder cache on new token
-                    resolve(resp.access_token);
-                }
-            });
-            client.requestAccessToken({ prompt: '' });
-        });
-    }
-
-    // Delegate to VG auth — single shared token for both PB and VG
-    async function _driveEnsureToken() {
-        return _vgDriveEnsureToken();
-    }
-
-    // Find or create the root PB folder; returns folderId
-    async function _driveEnsureFolder(token) {
-        if (appConfig._driveFolderId) return appConfig._driveFolderId;
-        const folderName = appConfig.driveFolderName || 'Photo Booth Captures';
-        // Search for existing folder
-        const query = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g,"\\'")}' and trashed=false`);
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._driveFolderId = searchData.files[0].id;
-            return appConfig._driveFolderId;
-        }
-        // Create the root folder
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
-        });
-        const folder = await createResp.json();
-        appConfig._driveFolderId = folder.id;
-        return folder.id;
-    }
-
-    // Find or create the event sub-folder inside the root PB folder; returns its folderId
-    async function _driveEnsureEventFolder(token) {
-        if (appConfig._driveEventFolderId) return appConfig._driveEventFolderId;
-        const parentId = await _driveEnsureFolder(token);
-        const subName = appConfig.eventName ? appConfig.eventName.trim() : 'Default Event';
-        const query = encodeURIComponent(
-            `mimeType='application/vnd.google-apps.folder' and name='${subName.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`
-        );
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._driveEventFolderId = searchData.files[0].id;
-            return appConfig._driveEventFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: subName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-        });
-        const sub = await createResp.json();
-        appConfig._driveEventFolderId = sub.id;
-        return sub.id;
-    }
-
-    // Create a session-specific sub-folder inside the event folder; returns folder object with id and webViewLink
-    async function _driveEnsureSessionFolder(token) {
-        // If session folder already created for this session, return cached values
-        if (currentSessionFolderId && currentSessionFolderLink) {
-            return { id: currentSessionFolderId, webViewLink: currentSessionFolderLink };
-        }
-
-        // Ensure we have a session ID
-        if (!currentSessionId) {
-            startNewSession();
-        }
-
-        const eventFolderId = await _driveEnsureEventFolder(token);
-        const sessionFolderName = currentSessionId;
-
-        // Create the session folder (don't search, always create new)
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: sessionFolderName,
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [eventFolderId]
-            })
-        });
-        const sessionFolder = await createResp.json();
-
-        // Set public permissions on the session folder
-        await _driveSetPublic(token, sessionFolder.id);
-
-        // Cache the session folder ID and link
-        currentSessionFolderId = sessionFolder.id;
-        currentSessionFolderLink = sessionFolder.webViewLink;
-
-        console.log('[Drive] Created session folder:', sessionFolderName, sessionFolder.webViewLink);
-        return sessionFolder;
-    }
-
-    // Upload a Blob to Drive inside the session sub-folder
-    async function uploadToDrive(blob, filename) {
-        try {
-            const token = await _driveEnsureToken();
-            const sessionFolder = await _driveEnsureSessionFolder(token);
-            const meta = JSON.stringify({ name: filename, parents: [sessionFolder.id] });
-            const form = new FormData();
-            form.append('metadata', new Blob([meta], { type: 'application/json' }));
-            form.append('file', blob, filename);
-            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token },
-                body: form
-            });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                // Token may have expired — clear shared VG token and retry once
-                if (resp.status === 401) {
-                    appConfig._vgDriveAccessToken = null;
-                    const token2 = await _driveEnsureToken();
-                    const form2 = new FormData();
-                    form2.append('metadata', new Blob([meta], { type: 'application/json' }));
-                    form2.append('file', blob, filename);
-                    const resp2 = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                        method: 'POST',
-                        headers: { Authorization: 'Bearer ' + token2 },
-                        body: form2
-                    });
-                    if (!resp2.ok) throw new Error('Drive upload failed after retry');
-                    return resp2.json();
-                }
-                throw new Error((err.error && err.error.message) || 'Drive upload failed');
-            }
-            return resp.json();
-        } catch (e) {
-            console.warn('[Drive] Upload error:', e.message);
-            throw e;
-        }
-    }
-
-    // Upload a video blob using the VG-specific Drive credentials into the session sub-folder
-    async function uploadVgToDrive(blob, filename) {
-        try {
-            const token = await _vgDriveEnsureToken();
-            const sessionFolder = await _vgDriveEnsureSessionFolder(token);
-            const mimeType = blob.type || 'video/webm';
-            const meta = JSON.stringify({ name: filename, parents: [sessionFolder.id] });
-            const form = new FormData();
-            form.append('metadata', new Blob([meta], { type: 'application/json' }));
-            form.append('file', blob, filename);
-            const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token },
-                body: form
-            });
-            if (!resp.ok) {
-                if (resp.status === 401) {
-                    appConfig._vgDriveAccessToken = null;
-                    const token2 = await _vgDriveEnsureToken();
-                    const form2 = new FormData();
-                    form2.append('metadata', new Blob([meta], { type: 'application/json' }));
-                    form2.append('file', blob, filename);
-                    const resp2 = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink', {
-                        method: 'POST',
-                        headers: { Authorization: 'Bearer ' + token2 },
-                        body: form2
-                    });
-                    if (!resp2.ok) throw new Error('Drive VG upload failed after retry');
-                    return resp2.json();
-                }
-                throw new Error('Drive VG upload failed');
-            }
-            return resp.json();
-        } catch (e) {
-            console.warn('[Drive] VG upload error:', e.message);
-            throw e;
-        }
-    }
-
-    // PB Drive auth is shared with VG — sign-in handled in Capture Settings
-
-    // ─── VIDEO GUESTBOOK — INDEPENDENT GOOGLE DRIVE AUTH ──────────────────────
-
-    function _getVgDriveClientId() {
-        const el = document.getElementById('vg-drive-client-id');
-        const inputVal = el ? el.value.trim() : '';
-        // Fall back to VG config, then PB config, then the hardcoded constant
-        return inputVal || appConfig.vgDriveClientId || _getDriveClientId();
-    }
+    // ─── DRIVE UI HANDLERS ────────────────────────────────────────────────────
+    // Folder/event/session creation, OAuth, retry, offline queue all live in
+    // window.PB.drive (src/lib/drive). The handlers here just wire DOM inputs
+    // to that client and update the local status banner.
 
     function _vgDriveSetStatus(msg, isErr = false) {
         const el = document.getElementById('vg-drive-auth-status');
         if (el) { el.innerHTML = msg; el.style.color = isErr ? '#dc2626' : '#6b7280'; }
     }
 
-    async function _vgDriveRequestToken() {
-        return new Promise((resolve, reject) => {
-            const clientId = _getVgDriveClientId();
-            const client = google.accounts.oauth2.initTokenClient({
-                client_id: clientId,
-                scope: 'https://www.googleapis.com/auth/drive.file',
-                callback: (response) => {
-                    if (response.error) { reject(new Error(response.error)); return; }
-                    appConfig._vgDriveAccessToken = response.access_token;
-                    resolve(response.access_token);
-                }
-            });
-            client.requestAccessToken();
-        });
-    }
-
-    async function _vgDriveEnsureToken() {
-        if (appConfig._vgDriveAccessToken) return appConfig._vgDriveAccessToken;
-        return _vgDriveRequestToken();
-    }
-
-    async function _vgDriveEnsureFolder(token) {
-        if (appConfig._vgDriveFolderId) return appConfig._vgDriveFolderId;
-        const folderName = appConfig.vgDriveFolderName || 'Video Guestbook Captures';
-        const query = encodeURIComponent(`mimeType='application/vnd.google-apps.folder' and name='${folderName.replace(/'/g,"\\'")}' and trashed=false`);
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._vgDriveFolderId = searchData.files[0].id;
-            return appConfig._vgDriveFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: folderName, mimeType: 'application/vnd.google-apps.folder' })
-        });
-        const folder = await createResp.json();
-        appConfig._vgDriveFolderId = folder.id;
-        return folder.id;
-    }
-
-    // Find or create the event sub-folder inside the root VG folder; returns its folderId
-    async function _vgDriveEnsureEventFolder(token) {
-        if (appConfig._vgDriveEventFolderId) return appConfig._vgDriveEventFolderId;
-        const parentId = await _vgDriveEnsureFolder(token);
-        const subName = appConfig.eventName ? appConfig.eventName.trim() : 'Default Event';
-        const query = encodeURIComponent(
-            `mimeType='application/vnd.google-apps.folder' and name='${subName.replace(/'/g,"\\'")}' and '${parentId}' in parents and trashed=false`
-        );
-        const searchResp = await fetch(`https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name)`, {
-            headers: { Authorization: 'Bearer ' + token }
-        });
-        const searchData = await searchResp.json();
-        if (searchData.files && searchData.files.length > 0) {
-            appConfig._vgDriveEventFolderId = searchData.files[0].id;
-            return appConfig._vgDriveEventFolderId;
-        }
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: subName, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
-        });
-        const sub = await createResp.json();
-        appConfig._vgDriveEventFolderId = sub.id;
-        return sub.id;
-    }
-
-    // Create a session-specific sub-folder for VG inside the event folder; returns folder object with id and webViewLink
-    async function _vgDriveEnsureSessionFolder(token) {
-        // If session folder already created for this session, return cached values
-        if (currentSessionFolderId && currentSessionFolderLink) {
-            return { id: currentSessionFolderId, webViewLink: currentSessionFolderLink };
-        }
-
-        // Ensure we have a session ID
-        if (!currentSessionId) {
-            startNewSession();
-        }
-
-        const eventFolderId = await _vgDriveEnsureEventFolder(token);
-        const sessionFolderName = currentSessionId;
-
-        // Create the session folder (don't search, always create new)
-        const createResp = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,webViewLink', {
-            method: 'POST',
-            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: sessionFolderName,
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [eventFolderId]
-            })
-        });
-        const sessionFolder = await createResp.json();
-
-        // Set public permissions on the session folder
-        await _driveSetPublic(token, sessionFolder.id);
-
-        // Cache the session folder ID and link
-        currentSessionFolderId = sessionFolder.id;
-        currentSessionFolderLink = sessionFolder.webViewLink;
-
-        console.log('[Drive VG] Created session folder:', sessionFolderName, sessionFolder.webViewLink);
-        return sessionFolder;
-    }
-
-    // UI: VG Drive folder name input
     $('#vg-drive-folder-name').on('input', function() {
         appConfig.vgDriveFolderName = this.value.trim() || 'Video Guestbook Captures';
-        appConfig._vgDriveFolderId = null; // reset folder cache
+        window.PB.drive.invalidateFolders('video-guestbook');
     });
 
-    // UI: VG Drive client ID input
     $('#vg-drive-client-id').on('input', function() {
         appConfig.vgDriveClientId = this.value.trim();
-        appConfig._vgDriveAccessToken = null;
-        appConfig._vgDriveFolderId = null;
+        window.PB.drive.signOut();
     });
 
-    // UI: VG Drive sign-in
     $('#btn-vg-drive-signin').on('click', async function() {
         const btn = $(this);
-        const clientId = _getVgDriveClientId();
-        if (!clientId || clientId.startsWith('YOUR_CLIENT')) {
-            _vgDriveSetStatus('Enter your Client ID above first.', true);
-            return;
-        }
         btn.prop('disabled', true).text('Signing in…');
         _vgDriveSetStatus('');
         try {
-            await _vgDriveRequestToken();
-            _vgDriveSetStatus('<i class="fa-solid fa-check"></i> Connected — videos will upload automatically', false);
+            await window.PB.drive.getToken({ forcePrompt: true });
+            _vgDriveSetStatus('<i class="fa-solid fa-check"></i> Connected — captures will upload automatically', false);
             btn.hide();
             $('#btn-vg-drive-signout').show();
+            // Best-effort: flush any uploads that queued offline last session.
+            window.PB.drive.flushQueue().catch(() => {});
         } catch (e) {
             _vgDriveSetStatus('Sign-in failed: ' + e.message, true);
         } finally {
@@ -949,134 +612,23 @@ $(document).ready(function() {
         }
     });
 
-    // UI: VG Drive sign-out
     $('#btn-vg-drive-signout').on('click', function() {
-        if (appConfig._vgDriveAccessToken) {
-            google.accounts.oauth2.revoke(appConfig._vgDriveAccessToken, () => {});
-        }
-        appConfig._vgDriveAccessToken = null;
-        appConfig._vgDriveFolderId = null;
+        window.PB.drive.signOut();
         $(this).hide();
         $('#btn-vg-drive-signin').show();
         _vgDriveSetStatus('Signed out', false);
     });
 
-    // ──────────────────────────────────────────────────────────────────────────
-
-    // --- Camera selection ---
-    async function populateCameraList() {
-        const diag = document.getElementById('camera-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        const sel = document.getElementById('camera-select');
-        if (!sel) return;
-        setDiag('<span style="color:#9ca3af;">Scanning for cameras…</span>');
-
-        try {
-            // Request camera permission so the browser reveals device labels.
-            try {
-                const permStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                permStream.getTracks().forEach(t => t.stop());
-            } catch (permErr) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Camera permission denied (${permErr.name}). Grant camera access in browser settings, then tap Refresh.</span>`);
-                document.getElementById('camera-select').innerHTML = '<option value="">— permission denied —</option>';
-                return;
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter(d => d.kind === 'videoinput');
-            const prevValue = appConfig.selectedCameraId || sel.value;
-
-            sel.innerHTML = '';
-            if (videoInputs.length === 0) {
-                sel.innerHTML = '<option value="">No cameras found</option>';
-                setDiag('<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> No cameras detected. Plug in your camera, then tap Refresh.</span>');
-                return;
-            }
-
-            videoInputs.forEach((cam, i) => {
-                const opt = document.createElement('option');
-                opt.value = cam.deviceId;
-                opt.textContent = cam.label || ('Camera ' + (i + 1));
-                // Auto-prefer USB/external cameras and known action cameras (DJI, GoPro, etc.)
-                const lbl = (cam.label || '').toLowerCase();
-                if (!appConfig.selectedCameraId &&
-                    (lbl.includes('usb') || lbl.includes('external') ||
-                     lbl.includes('dji') || lbl.includes('action') || lbl.includes('gopro'))) {
-                    opt.selected = true;
-                }
-                sel.appendChild(opt);
-            });
-
-            // Restore previously chosen camera if still available
-            if (prevValue && [...sel.options].some(o => o.value === prevValue)) {
-                sel.value = prevValue;
-            }
-            appConfig.selectedCameraId = sel.value;
-
-            // Build diagnostic list so user can see what the browser actually found
-            const lines = videoInputs.map((cam, i) => {
-                const lbl = cam.label || '<em style="color:#f59e0b;">no label — tap Refresh after granting camera permission</em>';
-                const shortId = cam.deviceId ? ' <span style="color:#9ca3af;font-family:monospace;font-size:0.72rem;">' + cam.deviceId.slice(0, 10) + '…</span>' : '';
-                return `<span style="display:block;">[${i + 1}] ${lbl}${shortId}</span>`;
-            }).join('');
-            const hint = videoInputs.some(c => !c.label)
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> Some cameras have no label — grant camera permission and tap Refresh.</span>'
-                : '';
-            setDiag(`<span style="font-weight:600;">${videoInputs.length} camera(s) detected:</span><span style="display:block; margin-top:2px;">${lines}</span>${hint}`);
-
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateCameraList:', e);
-        }
-    }
+    // ─── PB CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
+    // Enumeration, preview lifecycle, USB-prefer heuristic all live in
+    // window.PB.devices.
 
     $('#camera-select').on('change', function() {
         appConfig.selectedCameraId = this.value;
     });
 
-    // --- Test Camera (live preview in settings) ---
-    let _testStream = null;
-
-    function _stopCameraTest() {
-        if (_testStream) { _testStream.getTracks().forEach(t => t.stop()); _testStream = null; }
-        const pv = document.getElementById('camera-test-preview');
-        if (pv) pv.srcObject = null;
-        $('#camera-test-card').hide();
-        $('#btn-test-camera').html('<i class="fa-solid fa-play"></i> Test');
-    }
-
-    $('#btn-test-camera').on('click', async function() {
-        const btn = $(this);
-        if (_testStream) { _stopCameraTest(); return; }
-
-        btn.prop('disabled', true).text('Opening…');
-        const diag = document.getElementById('camera-diag');
-        try {
-            const deviceId = appConfig.selectedCameraId;
-            const constraints = deviceId
-                ? { video: { deviceId: { exact: deviceId } } }
-                : { video: true };
-
-            _testStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const pv = document.getElementById('camera-test-preview');
-            pv.srcObject = _testStream;
-
-            // Show resolution info once track is active
-            const track = _testStream.getVideoTracks()[0];
-            const settings = track.getSettings();
-            const info = document.getElementById('camera-test-info');
-            if (info) info.textContent = `${track.label}  ·  ${settings.width || '?'} × ${settings.height || '?'}`;
-
-            $('#camera-test-card').show();
-            btn.prop('disabled', false).html('<i class="fa-solid fa-stop"></i> Stop Test');
-        } catch (e) {
-            btn.prop('disabled', false).html('<i class="fa-solid fa-play"></i> Test');
-            const msg = `<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Could not open camera: <strong>${e.name}</strong> — ${e.message}</span>`;
-            if (diag) diag.innerHTML = msg;
-        }
-    });
-
-    $('#btn-stop-camera-test').on('click', function() { _stopCameraTest(); });
+    $('#btn-test-camera').on('click', () => window.PB.devices.toggleCameraTest('pb'));
+    $('#btn-stop-camera-test').on('click', () => window.PB.devices.stopCameraTest('pb'));
 
     // --- Video Guestbook Settings ---
     $('#setting-vg-duration').on('input', function() {
@@ -1091,67 +643,7 @@ $(document).ready(function() {
         appConfig.vgPromptText = this.value;
     });
 
-    // --- VG Camera Selection ---
-    async function populateVgCameraList() {
-        const diag = document.getElementById('vg-camera-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        setDiag('<span style="color:#9ca3af;">Scanning for cameras…</span>');
-
-        try {
-            try {
-                const permStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                permStream.getTracks().forEach(t => t.stop());
-            } catch (permErr) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Camera permission denied (${permErr.name}). Grant camera access in browser settings, then tap Refresh.</span>`);
-                document.getElementById('vg-camera-select').innerHTML = '<option value="">— permission denied —</option>';
-                return;
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter(d => d.kind === 'videoinput');
-            const sel = document.getElementById('vg-camera-select');
-            const prevValue = appConfig.vgSelectedCameraId || sel.value;
-
-            sel.innerHTML = '';
-            if (videoInputs.length === 0) {
-                sel.innerHTML = '<option value="">No cameras found</option>';
-                setDiag('<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> No cameras detected. Plug in your camera, then tap Refresh.</span>');
-                return;
-            }
-
-            videoInputs.forEach((cam, i) => {
-                const opt = document.createElement('option');
-                opt.value = cam.deviceId;
-                opt.textContent = cam.label || ('Camera ' + (i + 1));
-                const lbl = (cam.label || '').toLowerCase();
-                if (!appConfig.vgSelectedCameraId &&
-                    (lbl.includes('usb') || lbl.includes('external') ||
-                     lbl.includes('dji') || lbl.includes('action') || lbl.includes('gopro'))) {
-                    opt.selected = true;
-                }
-                sel.appendChild(opt);
-            });
-
-            if (prevValue && [...sel.options].some(o => o.value === prevValue)) {
-                sel.value = prevValue;
-            }
-            appConfig.vgSelectedCameraId = sel.value;
-
-            const lines = videoInputs.map((cam, i) => {
-                const lbl = cam.label || '<em style="color:#f59e0b;">no label — tap Refresh after granting camera permission</em>';
-                const shortId = cam.deviceId ? ' <span style="color:#9ca3af;font-family:monospace;font-size:0.72rem;">' + cam.deviceId.slice(0, 10) + '…</span>' : '';
-                return `<span style="display:block;">[${i + 1}] ${lbl}${shortId}</span>`;
-            }).join('');
-            const hint = videoInputs.some(c => !c.label)
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> Some cameras have no label — grant camera permission and tap Refresh.</span>'
-                : '';
-            setDiag(`<span style="font-weight:600;">${videoInputs.length} camera(s) detected:</span><span style="display:block; margin-top:2px;">${lines}</span>${hint}`);
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateVgCameraList:', e);
-        }
-    }
-
+    // ─── VG CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
     $('#vg-camera-select').on('change', function() {
         appConfig.vgSelectedCameraId = this.value;
     });
@@ -1159,138 +651,13 @@ $(document).ready(function() {
     $('#btn-refresh-vg-cameras').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateVgCameraList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateCameraList('vg').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
-    // --- VG Test Camera ---
-    let _vgTestStream = null;
+    $('#btn-test-vg-camera').on('click', () => window.PB.devices.toggleCameraTest('vg'));
+    $('#btn-stop-vg-camera-test').on('click', () => window.PB.devices.stopCameraTest('vg'));
 
-    function _stopVgCameraTest() {
-        if (_vgTestStream) { _vgTestStream.getTracks().forEach(t => t.stop()); _vgTestStream = null; }
-        const pv = document.getElementById('vg-camera-test-preview');
-        if (pv) pv.srcObject = null;
-        $('#vg-camera-test-card').hide();
-        $('#btn-test-vg-camera').html('<i class="fa-solid fa-play"></i> Test');
-    }
-
-    $('#btn-test-vg-camera').on('click', async function() {
-        const btn = $(this);
-        if (_vgTestStream) { _stopVgCameraTest(); return; }
-
-        btn.prop('disabled', true).text('Opening…');
-        const diag = document.getElementById('vg-camera-diag');
-        try {
-            const deviceId = appConfig.vgSelectedCameraId;
-            const constraints = deviceId
-                ? { video: { deviceId: { exact: deviceId } } }
-                : { video: true };
-
-            _vgTestStream = await navigator.mediaDevices.getUserMedia(constraints);
-            const pv = document.getElementById('vg-camera-test-preview');
-            pv.srcObject = _vgTestStream;
-
-            const track = _vgTestStream.getVideoTracks()[0];
-            const settings = track.getSettings();
-            const info = document.getElementById('vg-camera-test-info');
-            if (info) info.textContent = `${track.label}  ·  ${settings.width || '?'} × ${settings.height || '?'}`;
-
-            $('#vg-camera-test-card').show();
-            btn.prop('disabled', false).html('<i class="fa-solid fa-stop"></i> Stop Test');
-        } catch (e) {
-            btn.prop('disabled', false).html('<i class="fa-solid fa-play"></i> Test');
-            const msg = `<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Could not open camera: <strong>${e.name}</strong> — ${e.message}</span>`;
-            if (diag) diag.innerHTML = msg;
-        }
-    });
-
-    $('#btn-stop-vg-camera-test').on('click', function() { _stopVgCameraTest(); });
-
-    // --- VG Audio Device Selection (Microphone & Speaker) ---
-    async function populateVgAudioDeviceList() {
-        const diag = document.getElementById('vg-audio-diag');
-        const setDiag = (html) => { if (diag) diag.innerHTML = html; };
-        setDiag('<span style="color:#9ca3af;">Scanning for audio devices…</span>');
-
-        try {
-            // Request audio permission so browsers expose device labels.
-            let permStream = null;
-            try {
-                permStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            } catch (e) {
-                setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Microphone permission denied (${e.name}). Grant microphone access in browser settings, then tap ↺ Refresh.</span>`);
-                return;
-            } finally {
-                if (permStream) permStream.getTracks().forEach(t => t.stop());
-            }
-
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const audioInputs  = devices.filter(d => d.kind === 'audioinput');
-            const audioOutputs = devices.filter(d => d.kind === 'audiooutput');
-
-            // --- Microphone dropdown ---
-            const micSel = document.getElementById('vg-mic-select');
-            const prevMicVal = appConfig.vgSelectedMicId;
-            micSel.innerHTML = '<option value="">— Default microphone —</option>';
-            audioInputs.forEach((dev, i) => {
-                const opt = document.createElement('option');
-                opt.value = dev.deviceId;
-                opt.textContent = dev.label || ('Microphone ' + (i + 1));
-                micSel.appendChild(opt);
-            });
-            if (prevMicVal && [...micSel.options].some(o => o.value === prevMicVal)) {
-                micSel.value = prevMicVal;
-            }
-            appConfig.vgSelectedMicId = micSel.value;
-
-            // --- Speaker dropdown ---
-            const spkSel = document.getElementById('vg-speaker-select');
-            const prevSpkVal = appConfig.vgSelectedSpeakerId;
-            spkSel.innerHTML = '<option value="">— Default speaker —</option>';
-            if (audioOutputs.length === 0) {
-                const noDevOpt = document.createElement('option');
-                noDevOpt.value = '';
-                noDevOpt.disabled = true;
-                noDevOpt.textContent = 'No output devices found';
-                spkSel.appendChild(noDevOpt);
-            } else {
-                audioOutputs.forEach((dev, i) => {
-                    const opt = document.createElement('option');
-                    opt.value = dev.deviceId;
-                    opt.textContent = dev.label || ('Speaker ' + (i + 1));
-                    spkSel.appendChild(opt);
-                });
-            }
-            if (prevSpkVal && [...spkSel.options].some(o => o.value === prevSpkVal)) {
-                spkSel.value = prevSpkVal;
-            }
-            appConfig.vgSelectedSpeakerId = spkSel.value;
-
-            // Show "Grant Bluetooth Access" button when Chrome hides output labels (requires selectAudioOutput())
-            const hasBlankOutputLabel = audioOutputs.some(d => !d.label);
-            const grantBtn = document.getElementById('btn-grant-audio-output');
-            if (grantBtn) {
-                grantBtn.style.display =
-                    (hasBlankOutputLabel && typeof navigator.mediaDevices.selectAudioOutput === 'function')
-                    ? '' : 'none';
-            }
-
-            // Diagnostic summary
-            const inputLines  = audioInputs.map((d, i) => `<span style="display:block;">[${i + 1}] ${d.label || '<em style="color:#f59e0b;">no label</em>'}</span>`).join('');
-            const outputLines = audioOutputs.map((d, i) => `<span style="display:block;">[${i + 1}] ${d.label || '<em style="color:#f59e0b;">no label</em>'}</span>`).join('');
-            const noOutputHint = audioOutputs.length === 0
-                ? '<span style="color:#f59e0b; display:block; margin-top:3px;"><i class="fa-solid fa-triangle-exclamation"></i> No audio output devices found — speaker selection not available on this browser/device.</span>'
-                : '';
-            setDiag(
-                `<span style="font-weight:600;">${audioInputs.length} mic(s) · ${audioOutputs.length} output(s) detected:</span>` +
-                (inputLines  ? `<span style="display:block; margin-top:2px;">${inputLines}</span>`  : '') +
-                (outputLines ? `<span style="display:block; margin-top:2px;">${outputLines}</span>` : '') +
-                noOutputHint
-            );
-        } catch (e) {
-            setDiag(`<span style="color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${e.name} — ${e.message}</span>`);
-            console.warn('populateVgAudioDeviceList:', e);
-        }
-    }
+    // ─── VG AUDIO DEVICE SELECTION (mic + speaker) ───────────────────────────
 
     $('#vg-mic-select').on('change', function() {
         appConfig.vgSelectedMicId = this.value;
@@ -1305,7 +672,7 @@ $(document).ready(function() {
     $('#btn-refresh-vg-audio').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateVgAudioDeviceList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateAudioDeviceList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
     // --- VG Storage — checkbox toggles (both local + drive can be active) ---
@@ -1342,8 +709,8 @@ $(document).ready(function() {
     });
 
     // Populate VG camera and audio device lists on load
-    populateVgCameraList();
-    populateVgAudioDeviceList();
+    window.PB.devices.populateCameraList('vg');
+    window.PB.devices.populateAudioDeviceList();
 
     // --- Advanced nav visibility ---
     function updateAdvancedNavForMode(mode) {
@@ -1432,11 +799,11 @@ $(document).ready(function() {
     $('#btn-refresh-cameras').on('click', function() {
         const btn = $(this);
         btn.prop('disabled', true).text('Refreshing…');
-        populateCameraList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
+        window.PB.devices.populateCameraList('pb').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
     });
 
     // Populate on load (non-blocking)
-    populateCameraList();
+    window.PB.devices.populateCameraList('pb');
 
     // --- Launch Kiosk ---
     // Mobile duplicate button delegates to the main launch button
@@ -1446,8 +813,7 @@ $(document).ready(function() {
         appConfig.layout = $('input[name="layout"]:checked').val();
         const launchBtn = $(this);
         launchBtn.prop('disabled', true).text('Initializing Hardware...');
-        _stopCameraTest();    // always release the test preview stream before launching
-        _stopVgCameraTest(); // also release VG test preview stream
+        window.PB.devices.stopAllCameraTests(); // release any preview streams before launching
 
         try {
         // ── getUserMedia path ─────────────────────────────────────────────
@@ -1463,8 +829,8 @@ $(document).ready(function() {
                 // the welcome screen.  This keeps the OS indicator light off while idle.
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
-                _requestFullscreen();
-                _setupSinkBeep(appConfig.vgSelectedSpeakerId);
+                window.PB.security.requestFullscreen();
+                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
             } else {
                 // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
@@ -1478,8 +844,8 @@ $(document).ready(function() {
 
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
-                _requestFullscreen();
-                _setupSinkBeep(appConfig.vgSelectedSpeakerId);
+                window.PB.security.requestFullscreen();
+                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
 
                 // Camera-lost watchdog for photo booth
@@ -1517,22 +883,113 @@ $(document).ready(function() {
         $('#camera-error-card').slideUp(200);
     });
 
-    // Returns the SHA-256 hex digest of a PIN string, or '' for empty input.
-    async function _hashPin(pin) {
-        if (!pin) return '';
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    // --- Kiosk PIN admin form ---
+    // Three fields: Current (only if a PIN already exists), New, Confirm. Apply
+    // button verifies the current PIN (when required), checks the new one
+    // matches the confirm, then hashes (PBKDF2 via window.PB.security) and
+    // saves. Raw PINs never persist in appConfig or localStorage.
+
+    function _hasKioskPin() {
+        return !!appConfig.kioskPin && appConfig.kioskPinLen > 0;
     }
 
-    // --- Kiosk PIN input (admin dashboard) ---
-    // Hash on blur/change so we never keep the raw PIN in appConfig or localStorage.
-    $('#kiosk-pin-input').on('change', async function() {
-        const raw = this.value.trim();
-        appConfig.kioskPin    = await _hashPin(raw);
-        appConfig.kioskPinLen = raw.length;
-        this.value = ''; // clear field — raw PIN must not persist in the DOM
-        $('#kiosk-pin-status').html(raw.length > 0 ? '<i class="fa-solid fa-lock"></i> PIN set' : 'No PIN — exit without prompt');
-        saveConfig();
+    function _renderPinAdminForm() {
+        $('#kiosk-pin-current-row').toggle(_hasKioskPin());
+        $('#kiosk-pin-status').html(_hasKioskPin()
+            ? '<i class="fa-solid fa-lock"></i> PIN set'
+            : 'No PIN — exit without prompt');
+        // Button label reflects intent: "Remove PIN" when clearing, "Update"
+        // when replacing, "Set PIN" when creating fresh.
+        const newRaw = String($('#kiosk-pin-new').val() || '').trim();
+        let label;
+        if (_hasKioskPin()) {
+            label = newRaw === '' ? 'Remove PIN' : 'Update PIN';
+        } else {
+            label = 'Set PIN';
+        }
+        $('#btn-kiosk-pin-apply').text(label);
+        $('#kiosk-pin-new-label').text(_hasKioskPin() ? 'New PIN' : 'PIN');
+    }
+
+    function _setPinFeedback(msg, kind) {
+        const color = kind === 'error' ? '#dc2626' : kind === 'ok' ? '#16a34a' : '#6b7280';
+        $('#kiosk-pin-feedback').css('color', color).text(msg || '');
+    }
+
+    function _clearPinAdminFields() {
+        $('#kiosk-pin-current').val('');
+        $('#kiosk-pin-new').val('');
+        $('#kiosk-pin-confirm').val('');
+    }
+
+    // Restrict all three PIN fields to digits only (including pasted content;
+    // `inputmode="numeric"` only hints the mobile keyboard, it doesn't enforce).
+    function _sanitizeNumericInput(el) {
+        const cleaned = el.value.replace(/\D/g, '');
+        if (cleaned !== el.value) el.value = cleaned;
+    }
+    $('#kiosk-pin-current, #kiosk-pin-confirm').on('input', function() {
+        _sanitizeNumericInput(this);
+    });
+    // The New field also drives the button label.
+    $('#kiosk-pin-new').on('input', function() {
+        _sanitizeNumericInput(this);
+        _renderPinAdminForm();
+    });
+
+    $('#btn-kiosk-pin-apply').on('click', async function() {
+        const btn = $(this);
+        const currentRaw = String($('#kiosk-pin-current').val() || '').trim();
+        const newRaw     = String($('#kiosk-pin-new').val()     || '').trim();
+        const confirmRaw = String($('#kiosk-pin-confirm').val() || '').trim();
+
+        // Validate new PIN (allow empty = remove).
+        if (newRaw !== '' && !/^\d{4,8}$/.test(newRaw)) {
+            _setPinFeedback('New PIN must be 4–8 digits.', 'error');
+            return;
+        }
+        if (newRaw !== confirmRaw) {
+            _setPinFeedback('New PIN and confirmation do not match.', 'error');
+            return;
+        }
+
+        const hadPinBefore = _hasKioskPin();
+        btn.prop('disabled', true);
+        _setPinFeedback('Verifying…', 'info');
+        try {
+            // When a PIN already exists, verify the current one first.
+            if (hadPinBefore) {
+                if (!currentRaw) {
+                    _setPinFeedback('Enter the current PIN to change it.', 'error');
+                    return;
+                }
+                const result = await window.PB.security.verifyPin(currentRaw, appConfig.kioskPin);
+                if (!result.ok) {
+                    _setPinFeedback('Current PIN is incorrect.', 'error');
+                    return;
+                }
+                // If the existing hash was legacy SHA-256, the verify call
+                // already returned a PBKDF2 hash for us — but we're about to
+                // overwrite it with hashPin(newRaw) anyway, so the migration
+                // is moot in this branch. We still log it for parity.
+                if (result.upgradedHash) {
+                    console.info('[Security] Legacy SHA-256 hash detected during PIN change');
+                }
+            }
+
+            // Apply the new PIN (or clear it).
+            appConfig.kioskPin    = await window.PB.security.hashPin(newRaw);
+            appConfig.kioskPinLen = newRaw.length;
+            saveConfig();
+            _clearPinAdminFields();
+            _renderPinAdminForm();
+            _setPinFeedback(
+                newRaw === '' ? 'PIN removed.' : (hadPinBefore ? 'PIN updated.' : 'PIN set.'),
+                'ok',
+            );
+        } finally {
+            btn.prop('disabled', false);
+        }
     });
 
     // --- PIN modal logic ---
@@ -1555,22 +1012,13 @@ $(document).ready(function() {
         $('#pin-overlay').hide();
     }
 
-    function _requestFullscreen() {
-        const el = document.documentElement;
-        const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (fn) fn.call(el).catch(() => {});
-    }
-
-    function _exitFullscreen() {
-        const fn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-        if (fn) fn.call(document).catch(() => {});
-    }
+    // (Fullscreen helpers live in window.PB.security.)
 
     function _doExitKiosk() {
         stopVgRecordingIfActive();
         if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
-        _teardownSinkBeep();
-        _exitFullscreen();
+        window.PB.audio.teardownSinkBeep();
+        window.PB.security.exitFullscreen();
         $('#kiosk-mode').hide();
         $('#vg-booth').hide();
         $('#live-booth').hide();
@@ -1593,15 +1041,22 @@ $(document).ready(function() {
         $('#pin-error').hide();
     });
 
-    // Compare hash of entered digits against stored hash once enough digits entered.
+    // Compare entered digits against stored hash once enough digits entered.
+    // verifyPin handles both PBKDF2 and legacy SHA-256, and returns an upgraded
+    // hash on a legacy match so we can transparently migrate the storage.
     $(document).on('click', '.pin-key[data-k]', async function() {
         if (_pinBuffer.length >= 8) return;
         _pinBuffer += $(this).data('k').toString();
         _renderPinDisplay();
         $('#pin-error').hide();
         if (_pinBuffer.length >= appConfig.kioskPinLen && appConfig.kioskPinLen > 0) {
-            const inputHash = await _hashPin(_pinBuffer);
-            if (inputHash === appConfig.kioskPin) {
+            const result = await window.PB.security.verifyPin(_pinBuffer, appConfig.kioskPin);
+            if (result.ok) {
+                if (result.upgradedHash) {
+                    appConfig.kioskPin = result.upgradedHash;
+                    saveConfig();
+                    console.info('[Security] PIN hash migrated from SHA-256 to PBKDF2');
+                }
                 _hidePinModal();
                 _doExitKiosk();
             } else {
@@ -1855,20 +1310,7 @@ $(document).ready(function() {
         });
     })();
 
-    // ==================== DRIVE: SET FILE PUBLIC ====================
-    // Makes a Drive file readable by anyone with the link (so QR scan works)
-    async function _driveSetPublic(token, fileId) {
-        try {
-            await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-                method: 'POST',
-                headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ role: 'reader', type: 'anyone' })
-            });
-        } catch (e) {
-            console.warn('[Drive] Could not set public permission:', e.message);
-        }
-    }
-    // ===============================================================
+    // (DRIVE: making session folders public is handled by window.PB.drive.)
 
     // ===============================================================
 
@@ -1943,39 +1385,10 @@ $(document).ready(function() {
         }
     }
 
-    function computeLayout(fW, fH) {
+    // (computeLayout + drawPhoto live in window.PB.capture; see src/lib/capture.)
+    function computeLayout() {
         const def = LAYOUT_DEFS[appConfig.layout] || LAYOUT_DEFS['4x6-1'];
-        const pW = def.pW, pH = def.pH;
-        const pad     = Math.round(pW * 0.05);   // side + top padding
-        const gap     = Math.round(pW * 0.025);  // gap between photos
-        const footerH = Math.round(pH * 0.15);   // polaroid template zone at bottom
-
-        const photoZoneW = pW - 2 * pad;
-        const photoZoneH = pH - 2 * pad - footerH;  // photos live above the footer
-
-        const maxPhotoW = Math.floor((photoZoneW - gap * (def.cols - 1)) / def.cols);
-        const maxPhotoH = Math.floor((photoZoneH - gap * (def.rows - 1)) / def.rows);
-        const slotW = (def.square === false) ? maxPhotoW : Math.min(maxPhotoW, maxPhotoH);
-        const slotH = (def.square === false) ? maxPhotoH : slotW;
-
-        // Center the photo grid in the photo zone (above footer)
-        const gridW  = slotW * def.cols + gap * (def.cols - 1);
-        const gridH  = slotH * def.rows + gap * (def.rows - 1);
-        const startX = Math.round((pW - gridW) / 2);
-        const startY = Math.round(pad + (photoZoneH - gridH) / 2);
-
-        const photoSlots = [];
-        for (let r = 0; r < def.rows; r++) {
-            for (let c = 0; c < def.cols; c++) {
-                photoSlots.push({
-                    x: startX + c * (slotW + gap),
-                    y: startY + r * (slotH + gap),
-                    w: slotW, h: slotH
-                });
-            }
-        }
-
-        return { cWidth: pW, cHeight: pH, photoSlots };
+        return window.PB.capture.computeLayout(def);
     }
 
     // ==================== VIDEO GUESTBOOK ====================
@@ -1990,152 +1403,21 @@ $(document).ready(function() {
     let _vgRecordStartTime = 0;     // wall-clock ms at which .start() was called
     let _vgActivePromptText = null; // prompt from current/last recording, preserved for redo
 
-    // Mic monitor state (reset each recording)
-    let _vgMicAudioCtx = null;
-    let _vgMicAnalyserRaf = null;
-    let _vgMicSilenceStart = null;
-    const VG_MIC_SILENCE_THRESHOLD = 0.01; // RMS below this is treated as silence
-    const VG_MIC_SILENCE_GRACE_MS  = 3000; // ms of silence before badge shows muted
-
-    function _setMicBadge(state) {
-        // state: 'ok' | 'muted' | 'none'
-        const badge = document.getElementById('vg-mic-badge');
-        const icon  = document.getElementById('vg-mic-icon');
-        const label = document.getElementById('vg-mic-label');
-        if (!badge) return;
-        badge.style.display = 'flex';
-        badge.className = state === 'ok' ? 'mic-ok' : state === 'muted' ? 'mic-muted' : 'mic-none';
-        if (state === 'ok') {
-            icon.className  = 'fa-solid fa-microphone';
-            label.textContent = 'Mic';
-        } else if (state === 'muted') {
-            icon.className  = 'fa-solid fa-microphone-slash';
-            label.textContent = 'Muted';
-        } else {
-            icon.className  = 'fa-solid fa-microphone-slash';
-            label.textContent = 'No mic';
-        }
-    }
-
-    function _stopMicMonitor() {
-        if (_vgMicAnalyserRaf) { cancelAnimationFrame(_vgMicAnalyserRaf); _vgMicAnalyserRaf = null; }
-        if (_vgMicAudioCtx)    { try { _vgMicAudioCtx.close(); } catch(e) {} _vgMicAudioCtx = null; }
-        _vgMicSilenceStart = null;
-        const badge = document.getElementById('vg-mic-badge');
-        if (badge) badge.style.display = 'none';
-    }
-
-    function _startMicMonitor(recordStream) {
-        // ── 1. Track-level checks (readyState + muted) ───────────────────
-        const audioTracks = recordStream.getAudioTracks();
-        if (audioTracks.length === 0) {
-            _setMicBadge('none');
-            return; // no audio — nothing more to monitor
-        }
-        const track = audioTracks[0];
-        if (track.readyState !== 'live' || track.muted) {
-            _setMicBadge('muted');
-        } else {
-            _setMicBadge('ok');
-        }
-
-        // System-level mute events (browser fires these when hardware disconnects
-        // or the OS mutes the device on some platforms)
-        track.onmute   = function() { _setMicBadge('muted'); };
-        track.onunmute = function() {
-            // Give the analyser a beat to confirm signal is back before going green
-            _vgMicSilenceStart = null;
-            _setMicBadge('ok');
-        };
-
-        // ── 2. Silence detection via Web Audio API ────────────────────────
-        try {
-            _vgMicAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const source   = _vgMicAudioCtx.createMediaStreamSource(recordStream);
-            const analyser = _vgMicAudioCtx.createAnalyser();
-            analyser.fftSize = 512;
-            source.connect(analyser);
-            const buffer = new Float32Array(analyser.fftSize);
-
-            function checkLevel() {
-                if (!_vgMicAudioCtx) return; // monitor was stopped
-                analyser.getFloatTimeDomainData(buffer);
-                let sum = 0;
-                for (let i = 0; i < buffer.length; i++) sum += buffer[i] * buffer[i];
-                const rms = Math.sqrt(sum / buffer.length);
-
-                if (rms < VG_MIC_SILENCE_THRESHOLD) {
-                    if (_vgMicSilenceStart === null) _vgMicSilenceStart = Date.now();
-                    if (Date.now() - _vgMicSilenceStart >= VG_MIC_SILENCE_GRACE_MS) {
-                        _setMicBadge('muted');
-                    }
-                } else {
-                    _vgMicSilenceStart = null;
-                    // Only flip back to OK if the track itself isn't hardware-muted
-                    if (!track.muted && track.readyState === 'live') _setMicBadge('ok');
-                }
-                _vgMicAnalyserRaf = requestAnimationFrame(checkLevel);
-            }
-            checkLevel();
-        } catch (e) {
-            // Web Audio not available — track-level badge is already set above
-            console.warn('[VG] Mic analyser unavailable:', e.message);
-        }
-    }
+    // (Mic monitor state + functions live in window.PB.audio.)
 
     // ── VG stream lifecycle ────────────────────────────────────────────────────
-    // Camera and microphone are acquired only for the duration of an active
-    // recording session.  _acquireVgStream() opens the devices; _releaseVgStream()
-    // stops every track and clears the video element's srcObject so the OS
-    // indicator light goes off while the kiosk is idle on the welcome screen.
-
+    // Acquire / release / re-acquire all live in window.PB.capture.camera. These
+    // thin shims preserve the legacy function names so call sites in trigger
+    // sequences read unchanged.
+    function _vgStreamConstraints() {
+        return { cameraId: appConfig.vgSelectedCameraId || '', micId: appConfig.vgSelectedMicId || '' };
+    }
     async function _acquireVgStream() {
-        // Reuse the existing stream if it is already live (e.g. during redo).
-        if (currentStream && currentStream.getVideoTracks().some(function(t) { return t.readyState === 'live'; })) {
-            return;
-        }
-        // Release any stale/ended tracks before opening new ones.
-        if (currentStream) {
-            currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-            currentStream = null;
-        }
-        const vgConstraints = {
-            width:     { ideal: 1920, max: 1920 },
-            height:    { ideal: 1080, max: 1080 },
-            frameRate: { ideal: 30,   max: 30   }
-        };
-        if (appConfig.vgSelectedCameraId) {
-            vgConstraints.deviceId = { exact: appConfig.vgSelectedCameraId };
-        }
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: vgConstraints });
-        let audioTracks = [];
-        try {
-            const audioConstraint = appConfig.vgSelectedMicId
-                ? { deviceId: { exact: appConfig.vgSelectedMicId } }
-                : true;
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
-            audioTracks = audioStream.getAudioTracks();
-        } catch (audioErr) {
-            console.warn('[VG] Requested mic unavailable, trying default:', audioErr.message);
-            try {
-                const fallback = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioTracks = fallback.getAudioTracks();
-            } catch (e2) {
-                console.warn('[VG] No audio track available:', e2.message);
-            }
-        }
-        currentStream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
+        await window.PB.capture.camera.acquire(_vgStreamConstraints());
     }
-
     function _releaseVgStream() {
-        if (currentStream) {
-            currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-            currentStream = null;
-        }
-        const vgFeedEl = document.getElementById('vg-camera-feed');
-        if (vgFeedEl) { vgFeedEl.srcObject = null; }
+        window.PB.capture.camera.release();
     }
-
     // ─────────────────────────────────────────────────────────────────────────
 
     function stopVgRecordingIfActive() {
@@ -2161,7 +1443,7 @@ $(document).ready(function() {
         clearInterval(_vgTimerInterval);
         clearTimeout(_vgMaxTimer);
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
-        _stopMicMonitor();
+        window.PB.audio.stopMicMonitor();
         _vgRecordStartTime = 0;
         const ol = document.getElementById('vg-overlay-live');
         if (ol) { ol.style.display = 'none'; }
@@ -2187,43 +1469,9 @@ $(document).ready(function() {
         if (btnReconnect) btnReconnect.disabled = true;
         if (statusEl) statusEl.textContent = 'Reconnecting\u2026';
         try {
-            if (currentStream) {
-                currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-                currentStream = null;
-            }
-            const vgConstraints = {
-                width: { ideal: 1920, max: 1920 },
-                height: { ideal: 1080, max: 1080 },
-                frameRate: { ideal: 30, max: 30 }
-            };
-            if (appConfig.vgSelectedCameraId) {
-                vgConstraints.deviceId = { exact: appConfig.vgSelectedCameraId };
-            }
-            const videoStream = await navigator.mediaDevices.getUserMedia({ video: vgConstraints });
-            let audioTracks = [];
-            try {
-                const audioConstraint = appConfig.vgSelectedMicId
-                    ? { deviceId: { exact: appConfig.vgSelectedMicId } }
-                    : true;
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
-                audioTracks = audioStream.getAudioTracks();
-            } catch (_audioErr) {
-                try {
-                    const fb = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    audioTracks = fb.getAudioTracks();
-                } catch (_) {}
-            }
-            currentStream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
+            const stream = await window.PB.capture.camera.reacquire(_vgStreamConstraints());
             const vgFeedEl = document.getElementById('vg-camera-feed');
-            if (vgFeedEl) vgFeedEl.srcObject = currentStream;
-            // Re-attach track-ended watchdog on the fresh stream
-            currentStream.getVideoTracks().forEach(function(track) {
-                track.onended = function() {
-                    console.warn('[VG] Camera track ended unexpectedly (reconnected stream).');
-                    stopVgRecordingIfActive();
-                    _showCameraLost();
-                };
-            });
+            if (vgFeedEl) vgFeedEl.srcObject = stream;
             _hideCameraLost();
             resetToWelcomeScreen();
         } catch (err) {
@@ -2231,6 +1479,13 @@ $(document).ready(function() {
             if (btnReconnect) btnReconnect.disabled = false;
         }
     }
+
+    // Bridge the camera-manager's track-ended watchdog to the legacy DOM
+    // overlay + recording cleanup.
+    window.addEventListener('pb:vg-camera-lost', function() {
+        stopVgRecordingIfActive();
+        _showCameraLost();
+    });
 
     function _showVgRecordError(err) {
         // Re-purpose the processing overlay to surface the error inline so the
@@ -2313,8 +1568,8 @@ $(document).ready(function() {
                     currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
                     currentStream = null;
                 }
-                _teardownSinkBeep();
-                _exitFullscreen();
+                window.PB.audio.teardownSinkBeep();
+                window.PB.security.exitFullscreen();
                 document.getElementById('kiosk-mode').style.display = 'none';
                 document.getElementById('admin-dashboard').style.removeProperty('display');
             });
@@ -2447,7 +1702,7 @@ $(document).ready(function() {
             cdEl.classList.remove('cd-pop');
             void cdEl.offsetWidth; // reflow to restart animation
             cdEl.classList.add('cd-pop');
-            _playBeep(i === 1 ? 880 : 660, 0.12); // countdown beep
+            window.PB.audio.beep(i === 1 ? 880 : 660, 0.12); // countdown beep
             await new Promise(r => setTimeout(r, 1000));
         }
         cdEl.style.display = 'none';
@@ -2575,7 +1830,7 @@ $(document).ready(function() {
         };
 
         _vgMediaRecorder.start(500); // collect chunks every 500ms
-        _startMicMonitor(recordStream); // begin mic activity + silence monitoring
+        window.PB.audio.startMicMonitor(recordStream); // begin mic activity + silence monitoring
         _stage = 'recording';
         $('#vg-hud').show();
         $('#vg-controls').show();
@@ -2587,7 +1842,7 @@ $(document).ready(function() {
 
         // Update HUD timer — wall-clock anchored to avoid drift on backgrounded tabs.
         _vgRecordStartTime = Date.now();
-        _playBeep(880, 0.08, 0.35); // recording-start cue (distinct from countdown beeps)
+        window.PB.audio.beep(880, 0.08, 0.35); // recording-start cue (distinct from countdown beeps)
         _vgTimerInterval = setInterval(function() {
             const elapsed = Math.floor((Date.now() - _vgRecordStartTime) / 1000);
             const mins = Math.floor(elapsed / 60);
@@ -2691,7 +1946,7 @@ $(document).ready(function() {
         clearInterval(_vgTimerInterval);
         clearTimeout(_vgMaxTimer);
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
-        _stopMicMonitor();
+        window.PB.audio.stopMicMonitor();
 
         // Reset recording state
         _vgChunks = [];
@@ -2714,18 +1969,10 @@ $(document).ready(function() {
         // Stop canvas compositing if it was active
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
 
-        const now = new Date();
-        const ts = now.getFullYear()
-            + String(now.getMonth() + 1).padStart(2, '0')
-            + String(now.getDate()).padStart(2, '0')
-            + '_'
-            + String(now.getHours()).padStart(2, '0')
-            + String(now.getMinutes()).padStart(2, '0')
-            + String(now.getSeconds()).padStart(2, '0');
-        const prefix = appConfig.eventName
-            ? appConfig.eventName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
-            : 'guestbook';
-        const filename = `${prefix}_${ts}.${ext}`;
+        // Same generator as the photo path, with a guestbook-flavoured prefix
+        // when no event name is configured.
+        const prefix = appConfig.eventName || 'guestbook';
+        const filename = window.PB.capture.makeFilename(prefix, ext);
 
         // Keep a blob URL in memory for gallery playback (intentionally not revoked)
         const galleryBlobUrl = URL.createObjectURL(blob);
@@ -2734,42 +1981,27 @@ $(document).ready(function() {
         _evictOldCaptures();
         updateDashboardGallery();
         // Broadcast thumbnail to Live Viewer peers (fire-and-forget)
-        lvBroadcastVideo(galleryBlobUrl, filename);
+        window.PB.liveViewer.host.broadcastVideo(galleryBlobUrl, filename);
 
         // Save locally (folder or download)
         if (appConfig.vgSaveLocal) {
             try {
-                if (directoryHandle) {
-                    const sessionDir = await directoryHandle.getDirectoryHandle(currentSessionId || 'session', { create: true });
-                    const fileHandle = await sessionDir.getFileHandle(filename, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } else {
-                    const dlUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = dlUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(dlUrl), 5000);
-                }
+                await window.PB.capture.saveBlobLocally(blob, filename, {
+                    directoryHandle: directoryHandle,
+                    sessionId: currentSessionId,
+                });
             } catch (err) {
                 await _showVgSaveError(blob, ext, err.message || 'Could not write file: ' + err.name);
             }
         }
 
-        // Upload to Google Drive using VG-specific credentials if enabled
-        if (appConfig.vgSaveDrive && _getVgDriveClientId() && !_getVgDriveClientId().startsWith('YOUR_CLIENT')) {
-            uploadVgToDrive(blob, filename).then(async result => {
-                // The session folder link is already set after creating the folder
+        // Upload to Google Drive (queues offline if the network drops).
+        if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
+            window.PB.drive.upload('video-guestbook', blob, filename).then(() => {
                 if (currentSessionFolderLink) {
-                    // Store session folder link in gallery for admin view
                     capturedVideoDriveLinks[0] = currentSessionFolderLink;
                     _appendGalleryQrBtn(0, 'video', currentSessionFolderLink);
-                    // Notify live viewer peers
-                    lvBroadcastDriveUpdate(filename, currentSessionFolderLink);
+                    window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                 }
             }).catch(e => console.warn('[Drive] VG upload failed:', e.message));
         }
@@ -2818,7 +2050,7 @@ $(document).ready(function() {
         }
 
         // Offer Drive QR code (VG mode: guest declined PB or PB not enabled)
-        if (appConfig.vgSaveDrive && appConfig._vgDriveAccessToken) {
+        if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
             await showDriveQrPrompt();
         }
 
@@ -3073,10 +2305,11 @@ $(document).ready(function() {
                     playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
                 });
             };
-            // Prefer AudioContext routing (already wired at kiosk launch via _setupSinkBeep —
-            // no extra audiooutput permission required). Fall back to setSinkId for cases where
-            // the speaker was configured but AudioContext routing failed.
-            if (_previewVideoSourceNode) {
+            // Prefer AudioContext routing (already wired at kiosk launch via
+            // window.PB.audio.setupSinkBeep — no extra audiooutput permission
+            // required). Fall back to setSinkId for cases where the speaker
+            // was configured but AudioContext routing failed.
+            if (window.PB.audio.hasPreviewRouting()) {
                 _startPreviewPlay();
             } else if (appConfig.vgSelectedSpeakerId && typeof video.setSinkId === 'function') {
                 video.setSinkId(appConfig.vgSelectedSpeakerId).then(_startPreviewPlay).catch(_startPreviewPlay);
@@ -3094,43 +2327,7 @@ $(document).ready(function() {
      * Falls back to drawing the current video frame (Safari, Firefox, older browsers).
      */
     async function drawPhoto(ctx, video, x, y, slotW, slotH) {
-        let source = null;
-        let usedImageCapture = false;
-
-        if (currentStream && typeof ImageCapture !== 'undefined') {
-            try {
-                const track = currentStream.getVideoTracks()[0];
-                const ic = new ImageCapture(track);
-                const blob = await ic.takePhoto();
-                source = await createImageBitmap(blob);
-                usedImageCapture = true;
-            } catch (e) {
-                console.warn('[drawPhoto] ImageCapture failed, using video frame:', e.message);
-                source = null;
-            }
-        }
-
-        const src = source || video;
-        // Support both <video> (videoWidth) and <img> (naturalWidth) sources
-        const fW = src.videoWidth  || src.naturalWidth  || src.width;
-        const fH = src.videoHeight || src.naturalHeight || src.height;
-
-        const scale = Math.max(slotW / fW, slotH / fH);
-        const srcW  = Math.round(slotW / scale);
-        const srcH  = Math.round(slotH / scale);
-        const srcX  = Math.max(0, Math.round((fW - srcW) / 2));
-        const srcY  = Math.max(0, Math.round((fH - srcH) / 2));
-
-        ctx.save();
-        // Mirror horizontally for selfie/getUserMedia cameras.
-        ctx.translate(x + slotW, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, slotW, slotH);
-        ctx.restore();
-
-        if (usedImageCapture && source instanceof ImageBitmap) {
-            source.close(); // free GPU memory immediately
-        }
+        return window.PB.capture.drawPhoto(ctx, currentStream, video, x, y, slotW, slotH);
     }
 
     // Cap how many captures are kept in the in-memory gallery to bound RAM growth.
@@ -3157,22 +2354,11 @@ $(document).ready(function() {
         // --- Save to local folder (or browser download as fallback) ---
         if (appConfig.saveLocal) {
             try {
-                if (directoryHandle) {
-                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-                    const sessionDir = await directoryHandle.getDirectoryHandle(currentSessionId || 'session', { create: true });
-                    const fileHandle = await sessionDir.getFileHandle(filename, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } else {
-                    const dataUrl = canvas.toDataURL('image/png', 1.0);
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = dataUrl;
-                    downloadLink.download = filename;
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
-                    document.body.removeChild(downloadLink);
-                }
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+                await window.PB.capture.saveBlobLocally(blob, filename, {
+                    directoryHandle: directoryHandle,
+                    sessionId: currentSessionId,
+                });
             } catch (err) { console.error('Save error:', err); }
         }
 
@@ -3183,19 +2369,18 @@ $(document).ready(function() {
         _evictOldCaptures();
         updateDashboardGallery();
         // Broadcast to Live Viewer peers (fire-and-forget)
-        lvBroadcastPhoto(photoDataUrl, filename);
+        window.PB.liveViewer.host.broadcastPhoto(photoDataUrl, filename);
 
-        // --- Upload to Google Drive (fire-and-forget, non-blocking) ---
-        if (appConfig.saveDrive && _getVgDriveClientId() && !_getVgDriveClientId().startsWith('YOUR_CLIENT')) {
+        // --- Upload to Google Drive (fire-and-forget; queues offline if needed) ---
+        if (appConfig.saveDrive && window.PB.drive.isSignedIn()) {
             canvas.toBlob(async function(blob) {
                 try {
-                    const result = await uploadToDrive(blob, filename);
+                    await window.PB.drive.upload('photo-booth', blob, filename);
                     console.log('[Drive] Uploaded:', filename);
-                    // Store session folder link in gallery for admin view
                     if (currentSessionFolderLink) {
                         capturedPhotoDriveLinks[0] = currentSessionFolderLink;
                         _appendGalleryQrBtn(0, 'photo', currentSessionFolderLink);
-                        lvBroadcastDriveUpdate(filename, currentSessionFolderLink);
+                        window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                     }
                 } catch (e) {
                     console.warn('[Drive] Upload failed:', e.message);
@@ -3208,7 +2393,7 @@ $(document).ready(function() {
         const previewMs = Math.max(appConfig.reviewTime * 1000, 1000);
         setTimeout(async () => {
             // Offer Drive QR code for VG→PB sessions (guest chose photo strip after video)
-            if (opts.continueSession && appConfig.vgSaveDrive && appConfig._vgDriveAccessToken) {
+            if (opts.continueSession && appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
                 await showDriveQrPrompt();
             }
             if (appConfig.vgThankYouEnabled) {
@@ -3299,123 +2484,10 @@ $(document).ready(function() {
         ctx.textBaseline = 'alphabetic';
     }
 
-    // ==================== AUDIO BEEPS ====================
-    let _audioCtx    = null;
-    let _sinkBeepCtx  = null;  // separate AudioContext whose output feeds _sinkBeepEl
-    let _sinkBeepDest = null;  // MediaStreamDestination connected to _sinkBeepEl
-    let _sinkBeepEl   = null;  // hidden Audio element with setSinkId applied to the BT speaker
-    let _previewVideoSourceNode = null; // MediaElementSource for #vg-preview-video, wired to _sinkBeepDest
-
-    function _getAudioCtx() {
-        if (!_audioCtx || _audioCtx.state === 'closed') {
-            _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        }
-        if (_audioCtx.state === 'suspended') _audioCtx.resume();
-        return _audioCtx;
-    }
-
-    // Call once from a user-gesture context (kiosk launch) to pre-wire beep audio to the
-    // selected Bluetooth speaker. Keeps the Audio element playing silence so that subsequent
-    // oscillator connections route instantly without needing another gesture.
-    function _setupSinkBeep(sinkId) {
-        if (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') {
-            _sinkBeepCtx.close().catch(() => {});
-        }
-        _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-        if (!sinkId || typeof Audio === 'undefined' || typeof Audio.prototype.setSinkId === 'undefined') return;
-        try {
-            _sinkBeepCtx  = new (window.AudioContext || window.webkitAudioContext)();
-            _sinkBeepDest = _sinkBeepCtx.createMediaStreamDestination();
-            _sinkBeepEl   = new Audio();
-            _sinkBeepEl.srcObject = _sinkBeepDest.stream;
-            _sinkBeepEl.setSinkId(sinkId)
-                .then(() => {
-                    _sinkBeepEl.play().catch(() => {});
-                    // Route the capture-review video through the same BT sink.
-                    // createMediaElementSource silences the element's native output and
-                    // sends audio through _sinkBeepDest → _sinkBeepEl → JBL speaker,
-                    // bypassing the OS default output (which may be the USB mic device).
-                    const previewVid = document.getElementById('vg-preview-video');
-                    if (previewVid && _sinkBeepCtx && _sinkBeepCtx.state !== 'closed') {
-                        try {
-                            _previewVideoSourceNode = _sinkBeepCtx.createMediaElementSource(previewVid);
-                            _previewVideoSourceNode.connect(_sinkBeepDest);
-                        } catch (e) {
-                            console.warn('[VG] Preview video audio routing error:', e.message);
-                        }
-                    }
-                })
-                .catch(() => {
-                    // Permission not granted for this deviceId — fall back to default output
-                    _sinkBeepCtx.close().catch(() => {});
-                    _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null; _previewVideoSourceNode = null;
-                });
-        } catch (e) {
-            _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-        }
-    }
-
-    function _teardownSinkBeep() {
-        if (_previewVideoSourceNode) { try { _previewVideoSourceNode.disconnect(); } catch (_) {} }
-        _previewVideoSourceNode = null;
-        if (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') _sinkBeepCtx.close().catch(() => {});
-        _sinkBeepCtx = null; _sinkBeepDest = null; _sinkBeepEl = null;
-    }
-
-    function _playBeep(freq, duration, volume) {
-        try {
-            // Route through the pre-wired Bluetooth sink when available; otherwise default output.
-            const ctx  = (_sinkBeepCtx && _sinkBeepCtx.state !== 'closed') ? _sinkBeepCtx  : _getAudioCtx();
-            const dest = (ctx === _sinkBeepCtx && _sinkBeepDest)           ? _sinkBeepDest : ctx.destination;
-            const osc  = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(dest);
-            osc.type = 'sine';
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(volume || 0.45, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + duration);
-        } catch (e) { /* audio not available */ }
-    }
-
-    // Play a short 880 Hz tone through the given audio output device (or default if sinkId is empty).
-    // Routes via a hidden Audio element so setSinkId() can override Android's default routing
-    // (needed when a USB mic is connected and Android steals default audio output away from Bluetooth).
-    function _testSpeakerOutput(sinkId) {
-        try {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!AudioCtx) return;
-            const ctx = new AudioCtx();
-            const dest = ctx.createMediaStreamDestination();
-            const osc  = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain);
-            gain.connect(dest);
-            osc.type = 'sine';
-            osc.frequency.value = 880;
-            gain.gain.setValueAtTime(0.4, ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-            osc.start(ctx.currentTime);
-            osc.stop(ctx.currentTime + 0.5);
-
-            const el = new Audio();
-            el.srcObject = dest.stream;
-            const startPlay = () => {
-                el.play().catch(() => {});
-                setTimeout(() => { el.srcObject = null; ctx.close(); }, 1200);
-            };
-            if (sinkId && typeof el.setSinkId === 'function') {
-                el.setSinkId(sinkId).then(startPlay).catch(startPlay);
-            } else {
-                startPlay();
-            }
-        } catch (e) { /* audio not available */ }
-    }
+    // (Audio beeps, BT sink routing, and speaker test live in window.PB.audio.)
 
     $('#btn-test-speaker').on('click', function() {
-        _testSpeakerOutput(appConfig.vgSelectedSpeakerId);
+        window.PB.audio.testSpeakerOutput(appConfig.vgSelectedSpeakerId);
     });
 
     $('#btn-grant-audio-output').on('click', async function() {
@@ -3428,7 +2500,7 @@ $(document).ready(function() {
         try {
             const device = await navigator.mediaDevices.selectAudioOutput();
             appConfig.vgSelectedSpeakerId = device.deviceId;
-            await populateVgAudioDeviceList();
+            await window.PB.devices.populateAudioDeviceList();
             // Re-select the device that was just granted
             const spkSel = document.getElementById('vg-speaker-select');
             if ([...spkSel.options].some(o => o.value === device.deviceId)) {
@@ -3455,7 +2527,7 @@ $(document).ready(function() {
             overlay.removeClass('active').hide();
             void overlay[0].offsetWidth;
             overlay.text(count).show();
-            _playBeep(count === 1 ? 880 : 660, 0.12); // beep on initial display
+            window.PB.audio.beep(count === 1 ? 880 : 660, 0.12); // beep on initial display
             requestAnimationFrame(() => overlay.addClass('active'));
             
             const interval = setInterval(() => {
@@ -3464,11 +2536,11 @@ $(document).ready(function() {
                     overlay.removeClass('active');
                     void overlay[0].offsetWidth; 
                     overlay.text(count).addClass('active');
-                    _playBeep(count === 1 ? 880 : 660, 0.12); // beep on each number
+                    window.PB.audio.beep(count === 1 ? 880 : 660, 0.12); // beep on each number
                 } else {
                     clearInterval(interval);
                     overlay.removeClass('active');
-                    _playBeep(1100, 0.08); // shutter beep
+                    window.PB.audio.beep(1100, 0.08); // shutter beep
                     // Resolve only AFTER hide so next countdown never races with this one
                     setTimeout(() => { overlay.hide(); resolve(); }, 250);
                 }
@@ -3705,404 +2777,26 @@ $(document).ready(function() {
     $('#event-name-input').on('input', function() {
         appConfig.eventName = this.value.trim();
         $('#event-name-input').val(appConfig.eventName);
-        // Reset event sub-folder cache so the new name creates a fresh sub-folder
-        appConfig._driveEventFolderId = null;
-        appConfig._vgDriveEventFolderId = null;
+        // Drive client invalidates its event-folder cache automatically when
+        // it next reads the event name; tell it now so any in-flight session
+        // folder is also reset.
+        window.PB.drive.invalidateFolders();
         _updateFilenamePreview();
         _updateEventNameWarnings();
     });
 
-    // =========================================================
-    // LIVE GALLERY VIEWER  (WebRTC / PeerJS peer-to-peer)
-    // =========================================================
-    // Protocol messages sent over DataChannel:
-    //   { type:'photo',  data:<dataURL>,       filename:<str>, ts:<ms> }
-    //   { type:'video',  data:<thumbDataURL>,  filename:<str>, ts:<ms>, duration:<secs> }
-    //   { type:'hello',  eventName:<str> }       — sent on new connection
-    //   { type:'ping' }
+    // ─── LIVE GALLERY VIEWER (host-side wiring) ──────────────────────────────
+    // PeerJS host, broadcast queue, video-thumb generation, and viewer-mode
+    // bootstrap all live in window.PB.liveViewer (src/lib/live-viewer).
 
-    let _lvPeer        = null;   // Peer instance (host mode)
-    let _lvConns       = [];     // array of active DataConnection objects
-    let _lvSentCount   = 0;
-    const LV_CHUNK_MAX = 16384; // DataChannel safe chunk size (16 KB)
-
-    // ── Host mode ──────────────────────────────────────────────
-    function _lvStart() {
-        if (typeof Peer === 'undefined') {
-            alert('PeerJS library has not loaded yet. Check your internet connection and try again.');
-            return;
-        }
-        _lvPeer = new Peer(); // uses free peerjs.com cloud signaling
-        _lvPeer.on('open', function(id) {
-            // Use admin-configured network address so other devices can reach this URL.
-            // If blank, fall back to window.location (works for same-browser testing only).
-            const addr = (appConfig.lvNetworkAddr || '').trim().replace(/\/+$/, '');
-            const viewerUrl = addr
-                ? addr + window.location.pathname + '?viewer=' + id
-                : window.location.origin + window.location.pathname + '?viewer=' + id;
-            $('#lv-viewer-url').text(viewerUrl);
-            // Render QR code
-            $('#lv-qr-container').empty();
-            new QRCode(document.getElementById('lv-qr-container'), {
-                text: viewerUrl,
-                width: 164,
-                height: 164,
-                colorDark: '#1e293b',
-                colorLight: '#ffffff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
-            $('#lv-idle-state').hide();
-            $('#lv-active-state').show();
-            _lvSetStatus('Waiting for viewer…', false);
-        });
-
-        _lvPeer.on('connection', function(conn) {
-            conn.on('open', function() {
-                if (_lvConns.includes(conn)) return; // guard: some browsers fire 'open' twice
-                _lvConns.push(conn);
-                _lvSetStatus(_lvConns.length + ' viewer' + (_lvConns.length > 1 ? 's' : '') + ' connected', true);
-                // Send current event name so viewer shows it in the header
-                conn.send(JSON.stringify({ type: 'hello', eventName: appConfig.eventName || '' }));
-            });
-            conn.on('close', function() {
-                _lvConns = _lvConns.filter(c => c !== conn);
-                const n = _lvConns.length;
-                _lvSetStatus(n > 0 ? n + ' viewer' + (n > 1 ? 's' : '') + ' connected' : 'Waiting for viewer…', n > 0);
-            });
-            conn.on('error', function() {
-                _lvConns = _lvConns.filter(c => c !== conn);
-            });
-        });
-
-        _lvPeer.on('error', function(err) {
-            console.warn('[LiveViewer] PeerJS error:', err.type, err.message);
-            _lvSetStatus('Connection error: ' + err.type, false);
-        });
-    }
-
-    function _lvStop() {
-        if (_lvPeer) { _lvPeer.destroy(); _lvPeer = null; }
-        _lvConns = [];
-        _lvSentCount = 0;
-        $('#lv-viewer-count').text('0');
-        $('#lv-sent-count').text('0');
-        $('#lv-active-state').hide();
-        $('#lv-idle-state').show();
-        $('#lv-qr-container').empty();
-    }
-
-    function _lvSetStatus(msg, connected) {
-        $('#lv-status-text').text(msg);
-        $('#lv-status-dot').toggleClass('lv-dot-on', connected);
-        $('#lv-viewer-count').text(_lvConns.length);
-    }
-
-    // Broadcast a JSON message to all connected viewers
-    function _lvBroadcast(msgObj) {
-        if (!_lvConns.length) return;
-        // Add a unique ID so the viewer can deduplicate if the same message arrives twice
-        msgObj._id = Math.random().toString(36).slice(2) + Date.now().toString(36);
-        const json = JSON.stringify(msgObj);
-        _lvConns.forEach(conn => {
-            try { if (conn.open) conn.send(json); }
-            catch (e) { console.warn('[LiveViewer] send error', e); }
-        });
-        _lvSentCount++;
-        $('#lv-sent-count').text(_lvSentCount);
-    }
-
-    // Capture a video thumbnail (first frame) as a JPEG data URL.
-    // Uses loadedmetadata → seek to avoid the onloadeddata race condition.
-    function _lvVideoThumb(blobUrl, callback) {
-        const vid = document.createElement('video');
-        const canvas = document.createElement('canvas');
-        let called = false;
-        function done(dataUrl, dur) {
-            if (called) return; called = true;
-            vid.src = ''; callback(dataUrl, dur);
-        }
-        const guard = setTimeout(() => done(null, 0), 5000); // never hang
-        vid.preload = 'metadata';
-        vid.muted = true;
-        vid.playsInline = true;
-        vid.onloadedmetadata = function() {
-            vid.currentTime = Math.min(0.5, (vid.duration || 1) * 0.1);
-        };
-        vid.onseeked = function() {
-            clearTimeout(guard);
-            const W = Math.min(vid.videoWidth  || 640, 640);
-            const H = Math.min(vid.videoHeight || 360, 360);
-            const scale = Math.min(W / (vid.videoWidth || 640), H / (vid.videoHeight || 360));
-            canvas.width  = Math.round((vid.videoWidth  || 640) * scale);
-            canvas.height = Math.round((vid.videoHeight || 360) * scale);
-            canvas.getContext('2d').drawImage(vid, 0, 0, canvas.width, canvas.height);
-            done(canvas.toDataURL('image/jpeg', 0.72), Math.round(vid.duration || 0));
-        };
-        vid.onerror = function() { clearTimeout(guard); done(null, 0); };
-        vid.src = blobUrl;
-    }
-
-    // Call this whenever a new photo is captured and should be sent to viewers
-    function lvBroadcastPhoto(dataUrl, filename) {
-        if (!_lvConns.length) return;
-        _lvBroadcast({ type: 'photo', data: dataUrl, filename: filename, ts: Date.now(), driveUrl: null });
-    }
-
-    // Call this whenever a new video is captured and should be sent to viewers
-    function lvBroadcastVideo(blobUrl, filename) {
-        if (!_lvConns.length) return;
-        _lvVideoThumb(blobUrl, function(thumbDataUrl, duration) {
-            // Even if thumbnail failed, still send the card with a null thumbnail
-            _lvBroadcast({ type: 'video', data: thumbDataUrl, filename: filename, ts: Date.now(), duration: duration, driveUrl: null });
-        });
-    }
-
-    // Called after a Drive upload completes to update the viewer card with a QR button
-    function lvBroadcastDriveUpdate(filename, driveUrl) {
-        if (!_lvConns.length || !driveUrl) return;
-        _lvBroadcast({ type: 'drive-update', filename: filename, driveUrl: driveUrl });
-    }
-
-    // Host UI handlers
-    $('#btn-lv-start').on('click', _lvStart);
-    $('#btn-lv-stop').on('click', _lvStop);
-
-    // Save the network address the admin types in
+    $('#btn-lv-start').on('click', () => window.PB.liveViewer.host.start());
+    $('#btn-lv-stop').on('click', () => window.PB.liveViewer.host.stop());
     $('#lv-network-addr').on('input', function() {
         appConfig.lvNetworkAddr = $(this).val().trim();
     });
 
-    // ── Viewer mode ────────────────────────────────────────────
-    (function initViewerMode() {
-        const params = new URLSearchParams(window.location.search);
-        const hostId = params.get('viewer');
-        if (!hostId) return; // normal host mode — nothing to do
+    // (Viewer-mode bootstrap lives in window.PB.liveViewer via LiveViewerClient.tryStart() in src/main.ts.)
 
-        // Hide everything except the viewer overlay
-        $('body > *').not('#viewer-mode').css('visibility', 'hidden');
-        $('#viewer-mode').css('display', 'flex');
-
-        // ── Lightbox helpers ──
-        function _viewerOpenPhoto(dataUrl) {
-            $('#viewer-lb-img').attr('src', dataUrl).show();
-            $('#viewer-lb-qr-wrap').hide();
-            $('#viewer-lb-video-note').hide();
-            $('#viewer-lightbox').css('display', 'flex');
-        }
-        function _viewerOpenVideoNoLink(thumbDataUrl) {
-            // No Drive link: show thumbnail (or blank) with an explanatory note
-            if (thumbDataUrl) $('#viewer-lb-img').attr('src', thumbDataUrl).show();
-            else $('#viewer-lb-img').hide();
-            $('#viewer-lb-qr-wrap').hide();
-            $('#viewer-lb-video-note').show();
-            $('#viewer-lightbox').css('display', 'flex');
-        }
-        function _viewerOpenQr(driveUrl) {
-            $('#viewer-lb-img').hide().attr('src', '');
-            $('#viewer-lb-qr').empty();
-            new QRCode(document.getElementById('viewer-lb-qr'), {
-                text: driveUrl, width: 220, height: 220,
-                colorDark: '#1e293b', colorLight: '#fff',
-                correctLevel: QRCode.CorrectLevel.M
-            });
-            $('#viewer-lb-drive-url').text(driveUrl);
-            $('#viewer-lb-qr-wrap').show();
-            $('#viewer-lb-video-note').hide();
-            $('#viewer-lightbox').css('display', 'flex');
-        }
-        function _viewerCloseLb() {
-            $('#viewer-lightbox').hide();
-            $('#viewer-lb-img').attr('src', '');
-            $('#viewer-lb-qr').empty();
-            $('#viewer-lb-video-note').hide();
-        }
-        $('#viewer-lb-close').on('click', _viewerCloseLb);
-        $('#viewer-lightbox').on('click', function(e) { if (e.target === this) _viewerCloseLb(); });
-
-        // Map filename → $item for drive-update lookups
-        const _viewerItems = {};
-        // Deduplicate messages by their _id field
-        const _viewerSeenIds = new Set();
-
-        function _viewerUpdateDrive(filename, driveUrl) {
-            const $item = _viewerItems[filename];
-            if (!$item || !driveUrl) return;
-            $item.attr('data-drive-url', driveUrl);
-            const $footer = $item.find('.viewer-item-footer');
-            if (!$footer.find('.viewer-qr-btn').length) {
-                const $btn = $('<button class="viewer-qr-btn">&#x1F4F1; QR</button>');
-                $btn.on('click', function(e) { e.stopPropagation(); _viewerOpenQr(driveUrl); });
-                $footer.prepend($btn);
-            }
-        }
-
-        let _viewerCount = 0;
-        function _viewerAddItem(msg, type) {
-            _viewerCount++;
-            $('#viewer-empty').hide();
-            const ts  = new Date(msg.ts).toLocaleTimeString();
-            const dur = msg.duration ? ' (' + msg.duration + 's)' : '';
-            const label = type === 'video' ? 'Video' + dur : 'Photo';
-            const driveUrl = msg.driveUrl || null;
-
-            let mediaHtml = '';
-            if (type === 'photo') {
-                mediaHtml = msg.data
-                    ? `<img src="${msg.data}" alt="Photo" style="width:100%;height:100%;object-fit:cover;display:block;">`
-                    : `<div style="width:100%;height:100%;background:#1e293b;display:flex;align-items:center;justify-content:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
-            } else {
-                mediaHtml = msg.data
-                    ? `<img src="${msg.data}" alt="Video" style="width:100%;height:100%;object-fit:cover;display:block;opacity:0.9;">`
-                    : `<div style="width:100%;height:100%;background:#1e293b;display:flex;align-items:center;justify-content:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor" style="color:#475569;"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
-                // Play icon overlay on thumbnail
-                if (msg.data) {
-                    mediaHtml += `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><div style="width:46px;height:46px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>`;
-                }
-            }
-
-            const qrBtnHtml = driveUrl ? '<button class="viewer-qr-btn">&#x1F4F1; QR</button>' : '';
-
-            const $item = $(`
-                <div class="viewer-item viewer-item-new" data-type="${type}" data-filename="${(msg.filename||'').replace(/"/g,'')}"
-                     ${driveUrl ? 'data-drive-url="' + driveUrl + '"' : ''}>
-                    <div class="viewer-item-media" style="position:relative;width:100%;padding-top:${type==='video'?'56.25%':'75%'};overflow:hidden;border-radius:8px 8px 0 0;cursor:pointer;">
-                        <div style="position:absolute;inset:0;">${mediaHtml}</div>
-                    </div>
-                    <div class="viewer-item-footer" style="padding:0.4rem 0.6rem;display:flex;align-items:center;gap:0.4rem;">
-                        ${qrBtnHtml}
-                        <span style="font-size:0.78rem;font-weight:600;color:#f1f5f9;flex:1;">${label}</span>
-                        <span style="font-size:0.72rem;color:#64748b;">${ts}</span>
-                    </div>
-                </div>
-            `);
-
-            // Tap media area:
-            //   Photo  → open full image in lightbox
-            //   Video + Drive link → open Drive URL in new tab so browser/Drive app plays it
-            //   Video + no Drive   → show thumbnail in lightbox with explanatory note
-            $item.find('.viewer-item-media').on('click', function() {
-                const dUrl = $item.attr('data-drive-url') || null;
-                if (type === 'photo') {
-                    if (msg.data) _viewerOpenPhoto(msg.data);
-                } else {
-                    if (dUrl) window.open(dUrl, '_blank');
-                    else      _viewerOpenVideoNoLink(msg.data);
-                }
-            });
-
-            // QR button: always shows the Drive QR code overlay
-            $item.find('.viewer-qr-btn').on('click', function(e) {
-                e.stopPropagation();
-                const dUrl = $item.attr('data-drive-url') || driveUrl;
-                if (dUrl) _viewerOpenQr(dUrl);
-            });
-
-            if (msg.filename) _viewerItems[msg.filename] = $item;
-
-            $('#viewer-gallery').prepend($item);
-            setTimeout(() => $item.removeClass('viewer-item-new'), 600);
-        }
-
-        // ── Wake Lock: keep screen on while viewer is open ──────
-        let _viewerWakeLock = null;
-        async function _acquireWakeLock() {
-            if (!('wakeLock' in navigator)) return;
-            try {
-                _viewerWakeLock = await navigator.wakeLock.request('screen');
-                _viewerWakeLock.addEventListener('release', function() { _viewerWakeLock = null; });
-            } catch (e) {
-                console.warn('[Viewer] Wake Lock:', e.message);
-            }
-        }
-        // Wake lock is released when the page is hidden; re-acquire on return
-        document.addEventListener('visibilitychange', function() {
-            if (document.visibilityState === 'visible' && !_viewerWakeLock) _acquireWakeLock();
-        });
-        _acquireWakeLock();
-
-        // ── Gallery persistence across page refreshes (sessionStorage) ──
-        const _storeKey = 'lv_gallery_' + hostId;
-        const STORE_MAX = 20;
-
-        function _storedItems() {
-            try { return JSON.parse(sessionStorage.getItem(_storeKey) || '[]'); }
-            catch (e) { return []; }
-        }
-        function _saveItem(msg, type) {
-            try {
-                const items = _storedItems();
-                items.unshift({ type: type, data: msg.data, filename: msg.filename, ts: msg.ts, duration: msg.duration, driveUrl: msg.driveUrl || null });
-                if (items.length > STORE_MAX) items.length = STORE_MAX;
-                sessionStorage.setItem(_storeKey, JSON.stringify(items));
-            } catch (e) { /* quota exceeded — skip caching this item */ }
-        }
-        function _saveUpdateDrive(filename, driveUrl) {
-            try {
-                const items = _storedItems();
-                const item = items.find(function(i) { return i.filename === filename; });
-                if (item) { item.driveUrl = driveUrl; sessionStorage.setItem(_storeKey, JSON.stringify(items)); }
-            } catch (e) {}
-        }
-
-        // Restore previously received captures after a page refresh
-        (function _restoreGallery() {
-            const saved = _storedItems();
-            if (!saved.length) return;
-            // saved is newest-first; reverse so repeated prepend keeps newest on top
-            saved.slice().reverse().forEach(function(item) {
-                _viewerAddItem(item, item.type);
-            });
-        })();
-
-        // ── WebRTC connection with auto-reconnect ─────────────────
-        let _viewerPeer = null;
-        function connectToHost() {
-            if (typeof Peer === 'undefined') { setTimeout(connectToHost, 200); return; }
-            // Destroy any previous peer before creating a new one
-            if (_viewerPeer) { try { _viewerPeer.destroy(); } catch (e) {} _viewerPeer = null; }
-            const peer = new Peer();
-            _viewerPeer = peer;
-            peer.on('open', function() {
-                const conn = peer.connect(hostId, { reliable: true });
-                conn.on('open', function() {
-                    $('#viewer-status-dot').css('background', '#22c55e');
-                    $('#viewer-status-text').text('Live');
-                    $('#viewer-event-name').text('Connected — waiting for captures…');
-                });
-                conn.on('data', function(raw) {
-                    try {
-                        const msg = JSON.parse(raw);
-                        // Deduplicate: skip messages we've already processed
-                        if (msg._id) {
-                            if (_viewerSeenIds.has(msg._id)) return;
-                            _viewerSeenIds.add(msg._id);
-                        }
-                        if      (msg.type === 'hello')        { if (msg.eventName) $('#viewer-event-name').text(msg.eventName); }
-                        else if (msg.type === 'photo')        { _viewerAddItem(msg, 'photo');  _saveItem(msg, 'photo'); }
-                        else if (msg.type === 'video')        { _viewerAddItem(msg, 'video');  _saveItem(msg, 'video'); }
-                        else if (msg.type === 'drive-update') { _viewerUpdateDrive(msg.filename, msg.driveUrl); _saveUpdateDrive(msg.filename, msg.driveUrl); }
-                    } catch (e) { /* ignore malformed */ }
-                });
-                conn.on('close', function() {
-                    $('#viewer-status-dot').css('background', '#f59e0b');
-                    $('#viewer-status-text').text('Reconnecting…');
-                    setTimeout(connectToHost, 3000);
-                });
-                conn.on('error', function() {
-                    $('#viewer-status-dot').css('background', '#f59e0b');
-                    $('#viewer-status-text').text('Reconnecting…');
-                    setTimeout(connectToHost, 3000);
-                });
-            });
-            peer.on('error', function(err) {
-                console.warn('[Viewer] Peer error:', err.type);
-                $('#viewer-status-dot').css('background', '#f59e0b');
-                $('#viewer-status-text').text('Reconnecting…');
-                setTimeout(connectToHost, 4000);
-            });
-        }
-        connectToHost();
-    })();
 
     // ── Sync all UI controls to the loaded appConfig ──────────────────────────
     // Called once after all event handlers are wired so that the DOM reflects
@@ -4125,9 +2819,11 @@ $(document).ready(function() {
             $('#filename-preview').text(prefix + '_YYYYMMDD_HHMMSS.png');
         }
 
-        // Kiosk PIN — field is always empty; we only store the hash
-        $('#kiosk-pin-input').val('');
-        $('#kiosk-pin-status').html(appConfig.kioskPin ? '<i class="fa-solid fa-lock"></i> PIN set' : 'No PIN — exit without prompt');
+        // Kiosk PIN — fields are always empty (we only store the hash); the
+        // helper toggles the Current-PIN row and contextual button label.
+        _clearPinAdminFields();
+        _renderPinAdminForm();
+        _setPinFeedback('');
 
         // Countdown sliders
         $('#setting-cd-1').val(appConfig.countdownFirst);

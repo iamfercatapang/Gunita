@@ -9,17 +9,17 @@
                    media-src * blob: data:;
                    connect-src * http: https:;">
     <title>Photo Booth - Admin Dashboard & Clean Review</title>
-    <link rel="stylesheet" href="styles.css">
-    <link rel="manifest" href="manifest.json">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-    <!-- Google Identity Services (for Drive OAuth) -->
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="manifest" href="./manifest.json">
+
+    <!-- Bundled entry: jQuery, PeerJS, FontAwesome, Inter font, typed state + constants. -->
+    <script type="module" src="/src/main.ts"></script>
+
+    <!-- Google Identity Services — must remain external (OAuth requires Google's domain). -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
 
-    <!-- PeerJS (WebRTC) — for Live Gallery Viewer feature -->
-    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" defer></script>
-    <!-- QR Code generator (used by Live Viewer) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- QR Code generator (vendored locally for offline use). -->
+    <script src="./vendor/qrcode.min.js" defer></script>
 </head>
 <body>
 
@@ -93,13 +93,35 @@
                 </div>
                 <!-- Kiosk PIN -->
                 <div class="settings-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
-                    <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <div style="display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:0.2rem;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                         <div style="flex:1; min-width:0;">
                             <label style="display:block; font-weight:600; font-size:0.88rem; color:#374151; margin-bottom:0.35rem;">Exit PIN <span style="font-weight:400; color:#9ca3af;">(optional)</span></label>
-                            <input type="password" id="kiosk-pin-input" class="text-input" inputmode="numeric" maxlength="8" placeholder="Enter new PIN to set or change" style="width:100%; max-width:280px;">
-                            <p id="kiosk-pin-status" style="margin:0.25rem 0 0; font-size:0.78rem; color:#6b7280; font-weight:500;"></p>
-                            <p style="margin:0.2rem 0 0; font-size:0.78rem; color:#9ca3af;">When set, this PIN is required to exit Kiosk Mode — prevents guests from accessing settings.</p>
+                            <p id="kiosk-pin-status" style="margin:0 0 0.5rem; font-size:0.78rem; color:#6b7280; font-weight:500;"></p>
+
+                            <!-- Current PIN (shown only when a PIN is already set) -->
+                            <div id="kiosk-pin-current-row" style="display:none; margin-bottom:0.5rem;">
+                                <label for="kiosk-pin-current" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;">Current PIN</label>
+                                <input type="password" id="kiosk-pin-current" class="text-input" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Enter the current PIN" style="width:100%; max-width:280px;">
+                            </div>
+
+                            <!-- New PIN -->
+                            <div style="margin-bottom:0.5rem;">
+                                <label for="kiosk-pin-new" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;"><span id="kiosk-pin-new-label">New PIN</span> <span style="color:#9ca3af; font-weight:400;">(4–8 digits, or empty to remove)</span></label>
+                                <input type="password" id="kiosk-pin-new" class="text-input" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="4–8 digits" style="width:100%; max-width:280px;">
+                            </div>
+
+                            <!-- Confirm new PIN -->
+                            <div style="margin-bottom:0.5rem;">
+                                <label for="kiosk-pin-confirm" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;">Confirm new PIN</label>
+                                <input type="password" id="kiosk-pin-confirm" class="text-input" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="Re-enter the new PIN" style="width:100%; max-width:280px;">
+                            </div>
+
+                            <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.5rem;">
+                                <button id="btn-kiosk-pin-apply" class="btn-outline" type="button" style="font-size:0.85rem;">Set PIN</button>
+                                <span id="kiosk-pin-feedback" style="font-size:0.8rem; font-weight:500;"></span>
+                            </div>
+                            <p style="margin:0.6rem 0 0; font-size:0.78rem; color:#9ca3af;">When set, this PIN is required to exit Kiosk Mode — prevents guests from accessing settings. Hashed with PBKDF2-SHA-256.</p>
                         </div>
                     </div>
                 </div>
@@ -1474,10 +1496,9 @@
 
     <!-- ======================================= -->
 
-    <script src="pb-constants.js"></script>
-    <script src="pb-state.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="app.js"></script>
+    <!-- Legacy app.js — non-module script that consumes the window globals
+         set by /src/main.ts. Will be split into modules in Phase 2. -->
+    <script src="./app.js" defer></script>
 
     <!-- ========== PHOTO / VIDEO LIGHTBOX ========== -->
     <div id="photo-lightbox" class="lightbox-overlay" style="display:none;">
