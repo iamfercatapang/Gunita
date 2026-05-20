@@ -5,6 +5,7 @@
 
 import type { LayoutDef, PaperSize, PromptTemplates } from '../constants';
 import type { AudioController } from '../lib/audio';
+import type { ComputedLayout, LocalSaveDeps, VgCameraManager } from '../lib/capture';
 import type { DeviceManager } from '../lib/devices';
 import type { DriveClient } from '../lib/drive';
 import type { LiveViewerHost } from '../lib/live-viewer';
@@ -52,6 +53,22 @@ declare global {
       security: KioskSecurity;
       liveViewer: {
         host: LiveViewerHost;
+      };
+      capture: {
+        camera: VgCameraManager;
+        computeLayout: (def: LayoutDef) => ComputedLayout;
+        drawPhoto: (
+          ctx: CanvasRenderingContext2D,
+          stream: MediaStream | null,
+          fallback: HTMLVideoElement | HTMLImageElement,
+          x: number,
+          y: number,
+          slotW: number,
+          slotH: number,
+        ) => Promise<void>;
+        makeFilename: (eventName: string, ext?: string) => string;
+        saveBlobLocally: (blob: Blob, filename: string, deps: LocalSaveDeps) => Promise<void>;
+        downloadBlob: (blob: Blob, filename: string) => void;
       };
     };
   }
