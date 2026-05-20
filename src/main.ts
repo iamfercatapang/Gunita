@@ -29,6 +29,7 @@ import { GOOGLE_DRIVE_CLIENT_ID } from './constants';
 import { AudioController } from './lib/audio';
 import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
+import { KioskSecurity } from './lib/security';
 import './state/app-state';
 
 // Expose bundled vendor libs as globals for the legacy app.js.
@@ -96,10 +97,15 @@ const deviceManager = new DeviceManager({
   },
 });
 
+// ─── KioskSecurity instance ──────────────────────────────────────────────────
+// PIN hashing (PBKDF2 with legacy SHA-256 migration) and fullscreen helpers.
+const kioskSecurity = new KioskSecurity();
+
 window.PB = window.PB || ({} as Window['PB']);
 window.PB.drive = driveClient;
 window.PB.audio = audioController;
 window.PB.devices = deviceManager;
+window.PB.security = kioskSecurity;
 
 // Best-effort: try to flush any uploads that were queued offline last session.
 // The DriveClient also wires its own `online` listener.
