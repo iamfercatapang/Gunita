@@ -840,7 +840,7 @@ $(document).ready(function() {
                 // the welcome screen.  This keeps the OS indicator light off while idle.
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
-                _requestFullscreen();
+                window.PB.security.requestFullscreen();
                 window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
             } else {
@@ -855,7 +855,7 @@ $(document).ready(function() {
 
                 $('#admin-dashboard').hide();
                 $('#kiosk-mode').fadeIn(400);
-                _requestFullscreen();
+                window.PB.security.requestFullscreen();
                 window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
                 resetToWelcomeScreen();
 
@@ -894,18 +894,12 @@ $(document).ready(function() {
         $('#camera-error-card').slideUp(200);
     });
 
-    // Returns the SHA-256 hex digest of a PIN string, or '' for empty input.
-    async function _hashPin(pin) {
-        if (!pin) return '';
-        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pin));
-        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-
     // --- Kiosk PIN input (admin dashboard) ---
     // Hash on blur/change so we never keep the raw PIN in appConfig or localStorage.
+    // Hashing uses PBKDF2-SHA-256 + per-PIN salt; see src/lib/security.
     $('#kiosk-pin-input').on('change', async function() {
         const raw = this.value.trim();
-        appConfig.kioskPin    = await _hashPin(raw);
+        appConfig.kioskPin    = await window.PB.security.hashPin(raw);
         appConfig.kioskPinLen = raw.length;
         this.value = ''; // clear field — raw PIN must not persist in the DOM
         $('#kiosk-pin-status').html(raw.length > 0 ? '<i class="fa-solid fa-lock"></i> PIN set' : 'No PIN — exit without prompt');
@@ -932,22 +926,13 @@ $(document).ready(function() {
         $('#pin-overlay').hide();
     }
 
-    function _requestFullscreen() {
-        const el = document.documentElement;
-        const fn = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
-        if (fn) fn.call(el).catch(() => {});
-    }
-
-    function _exitFullscreen() {
-        const fn = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-        if (fn) fn.call(document).catch(() => {});
-    }
+    // (Fullscreen helpers live in window.PB.security.)
 
     function _doExitKiosk() {
         stopVgRecordingIfActive();
         if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
         window.PB.audio.teardownSinkBeep();
-        _exitFullscreen();
+        window.PB.security.exitFullscreen();
         $('#kiosk-mode').hide();
         $('#vg-booth').hide();
         $('#live-booth').hide();
@@ -970,15 +955,22 @@ $(document).ready(function() {
         $('#pin-error').hide();
     });
 
-    // Compare hash of entered digits against stored hash once enough digits entered.
+    // Compare entered digits against stored hash once enough digits entered.
+    // verifyPin handles both PBKDF2 and legacy SHA-256, and returns an upgraded
+    // hash on a legacy match so we can transparently migrate the storage.
     $(document).on('click', '.pin-key[data-k]', async function() {
         if (_pinBuffer.length >= 8) return;
         _pinBuffer += $(this).data('k').toString();
         _renderPinDisplay();
         $('#pin-error').hide();
         if (_pinBuffer.length >= appConfig.kioskPinLen && appConfig.kioskPinLen > 0) {
-            const inputHash = await _hashPin(_pinBuffer);
-            if (inputHash === appConfig.kioskPin) {
+            const result = await window.PB.security.verifyPin(_pinBuffer, appConfig.kioskPin);
+            if (result.ok) {
+                if (result.upgradedHash) {
+                    appConfig.kioskPin = result.upgradedHash;
+                    saveConfig();
+                    console.info('[Security] PIN hash migrated from SHA-256 to PBKDF2');
+                }
                 _hidePinModal();
                 _doExitKiosk();
             } else {
@@ -1587,7 +1579,7 @@ $(document).ready(function() {
                     currentStream = null;
                 }
                 window.PB.audio.teardownSinkBeep();
-                _exitFullscreen();
+                window.PB.security.exitFullscreen();
                 document.getElementById('kiosk-mode').style.display = 'none';
                 document.getElementById('admin-dashboard').style.removeProperty('display');
             });
