@@ -27,6 +27,14 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './constants';
 import { GOOGLE_DRIVE_CLIENT_ID } from './constants';
 import { AudioController } from './lib/audio';
+import {
+  VgCameraManager,
+  computeLayout,
+  downloadBlob,
+  drawPhoto,
+  makeFilename,
+  saveBlobLocally,
+} from './lib/capture';
 import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
 import { LiveViewerClient, LiveViewerHost } from './lib/live-viewer';
@@ -172,12 +180,31 @@ const liveViewerHost = new LiveViewerHost(
   },
 );
 
+// ─── Capture namespace ───────────────────────────────────────────────────────
+// VgCameraManager owns the VG MediaStream lifecycle and writes to
+// window.currentStream so the many legacy read-sites in app.js continue to
+// work unchanged. The onCameraLost callback is wired by app.js (it owns the
+// camera-lost overlay) via a custom event to avoid a circular dependency.
+const vgCameraManager = new VgCameraManager({
+  onCameraLost: () => {
+    window.dispatchEvent(new CustomEvent('pb:vg-camera-lost'));
+  },
+});
+
 window.PB = window.PB || ({} as Window['PB']);
 window.PB.drive = driveClient;
 window.PB.audio = audioController;
 window.PB.devices = deviceManager;
 window.PB.security = kioskSecurity;
 window.PB.liveViewer = { host: liveViewerHost };
+window.PB.capture = {
+  camera: vgCameraManager,
+  computeLayout,
+  drawPhoto,
+  makeFilename,
+  saveBlobLocally,
+  downloadBlob,
+};
 
 // Viewer mode auto-boots when the URL has `?viewer=<id>`; no-op otherwise.
 LiveViewerClient.tryStart();

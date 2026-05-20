@@ -1,17 +1,6 @@
-// --- Filename generator: eventName_YYYYMMDD_HHMMSS.png ---
-function makeFilename() {
-    const now = new Date();
-    const ts = now.getFullYear()
-        + String(now.getMonth() + 1).padStart(2, '0')
-        + String(now.getDate()).padStart(2, '0')
-        + '_'
-        + String(now.getHours()).padStart(2, '0')
-        + String(now.getMinutes()).padStart(2, '0')
-        + String(now.getSeconds()).padStart(2, '0');
-    const prefix = appConfig.eventName
-        ? appConfig.eventName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
-        : 'photobooth';
-    return `${prefix}_${ts}.png`;
+// --- Filename generator (thin wrapper around window.PB.capture.makeFilename) ---
+function makeFilename(ext = 'png') {
+    return window.PB.capture.makeFilename(appConfig.eventName, ext);
 }
 
 
@@ -1396,39 +1385,10 @@ $(document).ready(function() {
         }
     }
 
-    function computeLayout(fW, fH) {
+    // (computeLayout + drawPhoto live in window.PB.capture; see src/lib/capture.)
+    function computeLayout() {
         const def = LAYOUT_DEFS[appConfig.layout] || LAYOUT_DEFS['4x6-1'];
-        const pW = def.pW, pH = def.pH;
-        const pad     = Math.round(pW * 0.05);   // side + top padding
-        const gap     = Math.round(pW * 0.025);  // gap between photos
-        const footerH = Math.round(pH * 0.15);   // polaroid template zone at bottom
-
-        const photoZoneW = pW - 2 * pad;
-        const photoZoneH = pH - 2 * pad - footerH;  // photos live above the footer
-
-        const maxPhotoW = Math.floor((photoZoneW - gap * (def.cols - 1)) / def.cols);
-        const maxPhotoH = Math.floor((photoZoneH - gap * (def.rows - 1)) / def.rows);
-        const slotW = (def.square === false) ? maxPhotoW : Math.min(maxPhotoW, maxPhotoH);
-        const slotH = (def.square === false) ? maxPhotoH : slotW;
-
-        // Center the photo grid in the photo zone (above footer)
-        const gridW  = slotW * def.cols + gap * (def.cols - 1);
-        const gridH  = slotH * def.rows + gap * (def.rows - 1);
-        const startX = Math.round((pW - gridW) / 2);
-        const startY = Math.round(pad + (photoZoneH - gridH) / 2);
-
-        const photoSlots = [];
-        for (let r = 0; r < def.rows; r++) {
-            for (let c = 0; c < def.cols; c++) {
-                photoSlots.push({
-                    x: startX + c * (slotW + gap),
-                    y: startY + r * (slotH + gap),
-                    w: slotW, h: slotH
-                });
-            }
-        }
-
-        return { cWidth: pW, cHeight: pH, photoSlots };
+        return window.PB.capture.computeLayout(def);
     }
 
     // ==================== VIDEO GUESTBOOK ====================
@@ -1446,58 +1406,18 @@ $(document).ready(function() {
     // (Mic monitor state + functions live in window.PB.audio.)
 
     // ── VG stream lifecycle ────────────────────────────────────────────────────
-    // Camera and microphone are acquired only for the duration of an active
-    // recording session.  _acquireVgStream() opens the devices; _releaseVgStream()
-    // stops every track and clears the video element's srcObject so the OS
-    // indicator light goes off while the kiosk is idle on the welcome screen.
-
+    // Acquire / release / re-acquire all live in window.PB.camera. These thin
+    // shims preserve the legacy function names so call sites in trigger
+    // sequences read unchanged.
+    function _vgStreamConstraints() {
+        return { cameraId: appConfig.vgSelectedCameraId || '', micId: appConfig.vgSelectedMicId || '' };
+    }
     async function _acquireVgStream() {
-        // Reuse the existing stream if it is already live (e.g. during redo).
-        if (currentStream && currentStream.getVideoTracks().some(function(t) { return t.readyState === 'live'; })) {
-            return;
-        }
-        // Release any stale/ended tracks before opening new ones.
-        if (currentStream) {
-            currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-            currentStream = null;
-        }
-        const vgConstraints = {
-            width:     { ideal: 1920, max: 1920 },
-            height:    { ideal: 1080, max: 1080 },
-            frameRate: { ideal: 30,   max: 30   }
-        };
-        if (appConfig.vgSelectedCameraId) {
-            vgConstraints.deviceId = { exact: appConfig.vgSelectedCameraId };
-        }
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: vgConstraints });
-        let audioTracks = [];
-        try {
-            const audioConstraint = appConfig.vgSelectedMicId
-                ? { deviceId: { exact: appConfig.vgSelectedMicId } }
-                : true;
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
-            audioTracks = audioStream.getAudioTracks();
-        } catch (audioErr) {
-            console.warn('[VG] Requested mic unavailable, trying default:', audioErr.message);
-            try {
-                const fallback = await navigator.mediaDevices.getUserMedia({ audio: true });
-                audioTracks = fallback.getAudioTracks();
-            } catch (e2) {
-                console.warn('[VG] No audio track available:', e2.message);
-            }
-        }
-        currentStream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
+        await window.PB.camera.acquire(_vgStreamConstraints());
     }
-
     function _releaseVgStream() {
-        if (currentStream) {
-            currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-            currentStream = null;
-        }
-        const vgFeedEl = document.getElementById('vg-camera-feed');
-        if (vgFeedEl) { vgFeedEl.srcObject = null; }
+        window.PB.camera.release();
     }
-
     // ─────────────────────────────────────────────────────────────────────────
 
     function stopVgRecordingIfActive() {
@@ -1549,43 +1469,9 @@ $(document).ready(function() {
         if (btnReconnect) btnReconnect.disabled = true;
         if (statusEl) statusEl.textContent = 'Reconnecting\u2026';
         try {
-            if (currentStream) {
-                currentStream.getTracks().forEach(function(t) { try { t.stop(); } catch (_) {} });
-                currentStream = null;
-            }
-            const vgConstraints = {
-                width: { ideal: 1920, max: 1920 },
-                height: { ideal: 1080, max: 1080 },
-                frameRate: { ideal: 30, max: 30 }
-            };
-            if (appConfig.vgSelectedCameraId) {
-                vgConstraints.deviceId = { exact: appConfig.vgSelectedCameraId };
-            }
-            const videoStream = await navigator.mediaDevices.getUserMedia({ video: vgConstraints });
-            let audioTracks = [];
-            try {
-                const audioConstraint = appConfig.vgSelectedMicId
-                    ? { deviceId: { exact: appConfig.vgSelectedMicId } }
-                    : true;
-                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraint });
-                audioTracks = audioStream.getAudioTracks();
-            } catch (_audioErr) {
-                try {
-                    const fb = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    audioTracks = fb.getAudioTracks();
-                } catch (_) {}
-            }
-            currentStream = new MediaStream([...videoStream.getVideoTracks(), ...audioTracks]);
+            const stream = await window.PB.camera.reacquire(_vgStreamConstraints());
             const vgFeedEl = document.getElementById('vg-camera-feed');
-            if (vgFeedEl) vgFeedEl.srcObject = currentStream;
-            // Re-attach track-ended watchdog on the fresh stream
-            currentStream.getVideoTracks().forEach(function(track) {
-                track.onended = function() {
-                    console.warn('[VG] Camera track ended unexpectedly (reconnected stream).');
-                    stopVgRecordingIfActive();
-                    _showCameraLost();
-                };
-            });
+            if (vgFeedEl) vgFeedEl.srcObject = stream;
             _hideCameraLost();
             resetToWelcomeScreen();
         } catch (err) {
@@ -1593,6 +1479,13 @@ $(document).ready(function() {
             if (btnReconnect) btnReconnect.disabled = false;
         }
     }
+
+    // Bridge the camera-manager's track-ended watchdog to the legacy DOM
+    // overlay + recording cleanup.
+    window.addEventListener('pb:vg-camera-lost', function() {
+        stopVgRecordingIfActive();
+        _showCameraLost();
+    });
 
     function _showVgRecordError(err) {
         // Re-purpose the processing overlay to surface the error inline so the
@@ -2076,18 +1969,10 @@ $(document).ready(function() {
         // Stop canvas compositing if it was active
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
 
-        const now = new Date();
-        const ts = now.getFullYear()
-            + String(now.getMonth() + 1).padStart(2, '0')
-            + String(now.getDate()).padStart(2, '0')
-            + '_'
-            + String(now.getHours()).padStart(2, '0')
-            + String(now.getMinutes()).padStart(2, '0')
-            + String(now.getSeconds()).padStart(2, '0');
-        const prefix = appConfig.eventName
-            ? appConfig.eventName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '')
-            : 'guestbook';
-        const filename = `${prefix}_${ts}.${ext}`;
+        // Same generator as the photo path, with a guestbook-flavoured prefix
+        // when no event name is configured.
+        const prefix = appConfig.eventName || 'guestbook';
+        const filename = window.PB.capture.makeFilename(prefix, ext);
 
         // Keep a blob URL in memory for gallery playback (intentionally not revoked)
         const galleryBlobUrl = URL.createObjectURL(blob);
@@ -2101,22 +1986,10 @@ $(document).ready(function() {
         // Save locally (folder or download)
         if (appConfig.vgSaveLocal) {
             try {
-                if (directoryHandle) {
-                    const sessionDir = await directoryHandle.getDirectoryHandle(currentSessionId || 'session', { create: true });
-                    const fileHandle = await sessionDir.getFileHandle(filename, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } else {
-                    const dlUrl = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = dlUrl;
-                    a.download = filename;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    setTimeout(() => URL.revokeObjectURL(dlUrl), 5000);
-                }
+                await window.PB.capture.saveBlobLocally(blob, filename, {
+                    directoryHandle: directoryHandle,
+                    sessionId: currentSessionId,
+                });
             } catch (err) {
                 await _showVgSaveError(blob, ext, err.message || 'Could not write file: ' + err.name);
             }
@@ -2454,43 +2327,7 @@ $(document).ready(function() {
      * Falls back to drawing the current video frame (Safari, Firefox, older browsers).
      */
     async function drawPhoto(ctx, video, x, y, slotW, slotH) {
-        let source = null;
-        let usedImageCapture = false;
-
-        if (currentStream && typeof ImageCapture !== 'undefined') {
-            try {
-                const track = currentStream.getVideoTracks()[0];
-                const ic = new ImageCapture(track);
-                const blob = await ic.takePhoto();
-                source = await createImageBitmap(blob);
-                usedImageCapture = true;
-            } catch (e) {
-                console.warn('[drawPhoto] ImageCapture failed, using video frame:', e.message);
-                source = null;
-            }
-        }
-
-        const src = source || video;
-        // Support both <video> (videoWidth) and <img> (naturalWidth) sources
-        const fW = src.videoWidth  || src.naturalWidth  || src.width;
-        const fH = src.videoHeight || src.naturalHeight || src.height;
-
-        const scale = Math.max(slotW / fW, slotH / fH);
-        const srcW  = Math.round(slotW / scale);
-        const srcH  = Math.round(slotH / scale);
-        const srcX  = Math.max(0, Math.round((fW - srcW) / 2));
-        const srcY  = Math.max(0, Math.round((fH - srcH) / 2));
-
-        ctx.save();
-        // Mirror horizontally for selfie/getUserMedia cameras.
-        ctx.translate(x + slotW, y);
-        ctx.scale(-1, 1);
-        ctx.drawImage(src, srcX, srcY, srcW, srcH, 0, 0, slotW, slotH);
-        ctx.restore();
-
-        if (usedImageCapture && source instanceof ImageBitmap) {
-            source.close(); // free GPU memory immediately
-        }
+        return window.PB.capture.drawPhoto(ctx, currentStream, video, x, y, slotW, slotH);
     }
 
     // Cap how many captures are kept in the in-memory gallery to bound RAM growth.
@@ -2517,22 +2354,11 @@ $(document).ready(function() {
         // --- Save to local folder (or browser download as fallback) ---
         if (appConfig.saveLocal) {
             try {
-                if (directoryHandle) {
-                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
-                    const sessionDir = await directoryHandle.getDirectoryHandle(currentSessionId || 'session', { create: true });
-                    const fileHandle = await sessionDir.getFileHandle(filename, { create: true });
-                    const writable = await fileHandle.createWritable();
-                    await writable.write(blob);
-                    await writable.close();
-                } else {
-                    const dataUrl = canvas.toDataURL('image/png', 1.0);
-                    const downloadLink = document.createElement('a');
-                    downloadLink.href = dataUrl;
-                    downloadLink.download = filename;
-                    document.body.appendChild(downloadLink);
-                    downloadLink.click();
-                    document.body.removeChild(downloadLink);
-                }
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1.0));
+                await window.PB.capture.saveBlobLocally(blob, filename, {
+                    directoryHandle: directoryHandle,
+                    sessionId: currentSessionId,
+                });
             } catch (err) { console.error('Save error:', err); }
         }
 
