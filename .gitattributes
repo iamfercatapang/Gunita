@@ -1,0 +1,24 @@
+# Force LF line endings for all text files so Windows/Mac/Linux contributors
+# and CI see identical content. Without this, files committed from Windows
+# arrive as CRLF and Biome/tsc behaviour can diverge between local and CI.
+* text=auto eol=lf
+
+# Binary asset types — never line-end converted.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.webp  binary
+*.svg   text eol=lf
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.otf   binary
+*.mp4   binary
+*.webm  binary
+*.mp3   binary
+*.wav   binary
+*.pdf   binary
+*.zip   binary
