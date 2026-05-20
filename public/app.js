@@ -1406,17 +1406,17 @@ $(document).ready(function() {
     // (Mic monitor state + functions live in window.PB.audio.)
 
     // ── VG stream lifecycle ────────────────────────────────────────────────────
-    // Acquire / release / re-acquire all live in window.PB.camera. These thin
-    // shims preserve the legacy function names so call sites in trigger
+    // Acquire / release / re-acquire all live in window.PB.capture.camera. These
+    // thin shims preserve the legacy function names so call sites in trigger
     // sequences read unchanged.
     function _vgStreamConstraints() {
         return { cameraId: appConfig.vgSelectedCameraId || '', micId: appConfig.vgSelectedMicId || '' };
     }
     async function _acquireVgStream() {
-        await window.PB.camera.acquire(_vgStreamConstraints());
+        await window.PB.capture.camera.acquire(_vgStreamConstraints());
     }
     function _releaseVgStream() {
-        window.PB.camera.release();
+        window.PB.capture.camera.release();
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -1469,7 +1469,7 @@ $(document).ready(function() {
         if (btnReconnect) btnReconnect.disabled = true;
         if (statusEl) statusEl.textContent = 'Reconnecting\u2026';
         try {
-            const stream = await window.PB.camera.reacquire(_vgStreamConstraints());
+            const stream = await window.PB.capture.camera.reacquire(_vgStreamConstraints());
             const vgFeedEl = document.getElementById('vg-camera-feed');
             if (vgFeedEl) vgFeedEl.srcObject = stream;
             _hideCameraLost();
