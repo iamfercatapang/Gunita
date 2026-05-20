@@ -22,3 +22,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Claude Code local settings (per-user permission allowlist; must not be tracked)
+.claude/
