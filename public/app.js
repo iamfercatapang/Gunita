@@ -894,16 +894,113 @@ $(document).ready(function() {
         $('#camera-error-card').slideUp(200);
     });
 
-    // --- Kiosk PIN input (admin dashboard) ---
-    // Hash on blur/change so we never keep the raw PIN in appConfig or localStorage.
-    // Hashing uses PBKDF2-SHA-256 + per-PIN salt; see src/lib/security.
-    $('#kiosk-pin-input').on('change', async function() {
-        const raw = this.value.trim();
-        appConfig.kioskPin    = await window.PB.security.hashPin(raw);
-        appConfig.kioskPinLen = raw.length;
-        this.value = ''; // clear field — raw PIN must not persist in the DOM
-        $('#kiosk-pin-status').html(raw.length > 0 ? '<i class="fa-solid fa-lock"></i> PIN set' : 'No PIN — exit without prompt');
-        saveConfig();
+    // --- Kiosk PIN admin form ---
+    // Three fields: Current (only if a PIN already exists), New, Confirm. Apply
+    // button verifies the current PIN (when required), checks the new one
+    // matches the confirm, then hashes (PBKDF2 via window.PB.security) and
+    // saves. Raw PINs never persist in appConfig or localStorage.
+
+    function _hasKioskPin() {
+        return !!appConfig.kioskPin && appConfig.kioskPinLen > 0;
+    }
+
+    function _renderPinAdminForm() {
+        $('#kiosk-pin-current-row').toggle(_hasKioskPin());
+        $('#kiosk-pin-status').html(_hasKioskPin()
+            ? '<i class="fa-solid fa-lock"></i> PIN set'
+            : 'No PIN — exit without prompt');
+        // Button label reflects intent: "Remove PIN" when clearing, "Update"
+        // when replacing, "Set PIN" when creating fresh.
+        const newRaw = String($('#kiosk-pin-new').val() || '').trim();
+        let label;
+        if (_hasKioskPin()) {
+            label = newRaw === '' ? 'Remove PIN' : 'Update PIN';
+        } else {
+            label = 'Set PIN';
+        }
+        $('#btn-kiosk-pin-apply').text(label);
+        $('#kiosk-pin-new-label').text(_hasKioskPin() ? 'New PIN' : 'PIN');
+    }
+
+    function _setPinFeedback(msg, kind) {
+        const color = kind === 'error' ? '#dc2626' : kind === 'ok' ? '#16a34a' : '#6b7280';
+        $('#kiosk-pin-feedback').css('color', color).text(msg || '');
+    }
+
+    function _clearPinAdminFields() {
+        $('#kiosk-pin-current').val('');
+        $('#kiosk-pin-new').val('');
+        $('#kiosk-pin-confirm').val('');
+    }
+
+    // Restrict all three PIN fields to digits only (including pasted content;
+    // `inputmode="numeric"` only hints the mobile keyboard, it doesn't enforce).
+    function _sanitizeNumericInput(el) {
+        const cleaned = el.value.replace(/\D/g, '');
+        if (cleaned !== el.value) el.value = cleaned;
+    }
+    $('#kiosk-pin-current, #kiosk-pin-confirm').on('input', function() {
+        _sanitizeNumericInput(this);
+    });
+    // The New field also drives the button label.
+    $('#kiosk-pin-new').on('input', function() {
+        _sanitizeNumericInput(this);
+        _renderPinAdminForm();
+    });
+
+    $('#btn-kiosk-pin-apply').on('click', async function() {
+        const btn = $(this);
+        const currentRaw = String($('#kiosk-pin-current').val() || '').trim();
+        const newRaw     = String($('#kiosk-pin-new').val()     || '').trim();
+        const confirmRaw = String($('#kiosk-pin-confirm').val() || '').trim();
+
+        // Validate new PIN (allow empty = remove).
+        if (newRaw !== '' && !/^\d{4,8}$/.test(newRaw)) {
+            _setPinFeedback('New PIN must be 4–8 digits.', 'error');
+            return;
+        }
+        if (newRaw !== confirmRaw) {
+            _setPinFeedback('New PIN and confirmation do not match.', 'error');
+            return;
+        }
+
+        const hadPinBefore = _hasKioskPin();
+        btn.prop('disabled', true);
+        _setPinFeedback('Verifying…', 'info');
+        try {
+            // When a PIN already exists, verify the current one first.
+            if (hadPinBefore) {
+                if (!currentRaw) {
+                    _setPinFeedback('Enter the current PIN to change it.', 'error');
+                    return;
+                }
+                const result = await window.PB.security.verifyPin(currentRaw, appConfig.kioskPin);
+                if (!result.ok) {
+                    _setPinFeedback('Current PIN is incorrect.', 'error');
+                    return;
+                }
+                // If the existing hash was legacy SHA-256, the verify call
+                // already returned a PBKDF2 hash for us — but we're about to
+                // overwrite it with hashPin(newRaw) anyway, so the migration
+                // is moot in this branch. We still log it for parity.
+                if (result.upgradedHash) {
+                    console.info('[Security] Legacy SHA-256 hash detected during PIN change');
+                }
+            }
+
+            // Apply the new PIN (or clear it).
+            appConfig.kioskPin    = await window.PB.security.hashPin(newRaw);
+            appConfig.kioskPinLen = newRaw.length;
+            saveConfig();
+            _clearPinAdminFields();
+            _renderPinAdminForm();
+            _setPinFeedback(
+                newRaw === '' ? 'PIN removed.' : (hadPinBefore ? 'PIN updated.' : 'PIN set.'),
+                'ok',
+            );
+        } finally {
+            btn.prop('disabled', false);
+        }
     });
 
     // --- PIN modal logic ---
@@ -3275,9 +3372,11 @@ $(document).ready(function() {
             $('#filename-preview').text(prefix + '_YYYYMMDD_HHMMSS.png');
         }
 
-        // Kiosk PIN — field is always empty; we only store the hash
-        $('#kiosk-pin-input').val('');
-        $('#kiosk-pin-status').html(appConfig.kioskPin ? '<i class="fa-solid fa-lock"></i> PIN set' : 'No PIN — exit without prompt');
+        // Kiosk PIN — fields are always empty (we only store the hash); the
+        // helper toggles the Current-PIN row and contextual button label.
+        _clearPinAdminFields();
+        _renderPinAdminForm();
+        _setPinFeedback('');
 
         // Countdown sliders
         $('#setting-cd-1').val(appConfig.countdownFirst);
