@@ -29,6 +29,7 @@ import { GOOGLE_DRIVE_CLIENT_ID } from './constants';
 import { AudioController } from './lib/audio';
 import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
+import { LiveViewerClient, LiveViewerHost } from './lib/live-viewer';
 import { KioskSecurity } from './lib/security';
 import './state/app-state';
 
@@ -101,11 +102,85 @@ const deviceManager = new DeviceManager({
 // PIN hashing (PBKDF2 with legacy SHA-256 migration) and fullscreen helpers.
 const kioskSecurity = new KioskSecurity();
 
+// ─── LiveViewerHost instance ─────────────────────────────────────────────────
+// PeerJS-based broadcaster. Idle until start() is called by the admin button.
+// QR rendering uses the globally vendored qrcode.min.js (loaded by index.html).
+function setText(id: string, text: string): void {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+function setVisible(id: string, visible: boolean): void {
+  const el = document.getElementById(id);
+  if (el) el.style.display = visible ? '' : 'none';
+}
+function paintQr(targetId: string, text: string): void {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  target.innerHTML = '';
+  const QR = (
+    window as unknown as {
+      QRCode?: new (
+        el: HTMLElement,
+        opts: {
+          text: string;
+          width: number;
+          height: number;
+          colorDark: string;
+          colorLight: string;
+          correctLevel: number;
+        },
+      ) => unknown;
+    }
+  ).QRCode;
+  const Level = (window as unknown as { QRCode?: { CorrectLevel: { M: number } } }).QRCode;
+  if (!QR || !Level) return;
+  new QR(target, {
+    text,
+    width: 164,
+    height: 164,
+    colorDark: '#1e293b',
+    colorLight: '#ffffff',
+    correctLevel: Level.CorrectLevel.M,
+  });
+}
+
+const liveViewerHost = new LiveViewerHost(
+  {
+    getEventName: () => window.appConfig.eventName || '',
+    getNetworkAddr: () => window.appConfig.lvNetworkAddr || '',
+  },
+  {
+    setViewerUrl: (url) => setText('lv-viewer-url', url),
+    setQrTarget: (text) => paintQr('lv-qr-container', text),
+    setStatus: (text, isConnected) => {
+      setText('lv-status-text', text);
+      const dot = document.getElementById('lv-status-dot');
+      if (dot) dot.classList.toggle('lv-dot-on', isConnected);
+    },
+    setViewerCount: (n) => setText('lv-viewer-count', String(n)),
+    setSentCount: (n) => setText('lv-sent-count', String(n)),
+    showActive: () => {
+      setVisible('lv-idle-state', false);
+      setVisible('lv-active-state', true);
+    },
+    showIdle: () => {
+      setVisible('lv-active-state', false);
+      setVisible('lv-idle-state', true);
+      const qr = document.getElementById('lv-qr-container');
+      if (qr) qr.innerHTML = '';
+    },
+  },
+);
+
 window.PB = window.PB || ({} as Window['PB']);
 window.PB.drive = driveClient;
 window.PB.audio = audioController;
 window.PB.devices = deviceManager;
 window.PB.security = kioskSecurity;
+window.PB.liveViewer = { host: liveViewerHost };
+
+// Viewer mode auto-boots when the URL has `?viewer=<id>`; no-op otherwise.
+LiveViewerClient.tryStart();
 
 // Best-effort: try to flush any uploads that were queued offline last session.
 // The DriveClient also wires its own `online` listener.
