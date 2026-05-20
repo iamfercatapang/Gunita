@@ -2096,7 +2096,7 @@ $(document).ready(function() {
         _evictOldCaptures();
         updateDashboardGallery();
         // Broadcast thumbnail to Live Viewer peers (fire-and-forget)
-        lvBroadcastVideo(galleryBlobUrl, filename);
+        window.PB.liveViewer.host.broadcastVideo(galleryBlobUrl, filename);
 
         // Save locally (folder or download)
         if (appConfig.vgSaveLocal) {
@@ -2128,7 +2128,7 @@ $(document).ready(function() {
                 if (currentSessionFolderLink) {
                     capturedVideoDriveLinks[0] = currentSessionFolderLink;
                     _appendGalleryQrBtn(0, 'video', currentSessionFolderLink);
-                    lvBroadcastDriveUpdate(filename, currentSessionFolderLink);
+                    window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                 }
             }).catch(e => console.warn('[Drive] VG upload failed:', e.message));
         }
@@ -2543,7 +2543,7 @@ $(document).ready(function() {
         _evictOldCaptures();
         updateDashboardGallery();
         // Broadcast to Live Viewer peers (fire-and-forget)
-        lvBroadcastPhoto(photoDataUrl, filename);
+        window.PB.liveViewer.host.broadcastPhoto(photoDataUrl, filename);
 
         // --- Upload to Google Drive (fire-and-forget; queues offline if needed) ---
         if (appConfig.saveDrive && window.PB.drive.isSignedIn()) {
@@ -2554,7 +2554,7 @@ $(document).ready(function() {
                     if (currentSessionFolderLink) {
                         capturedPhotoDriveLinks[0] = currentSessionFolderLink;
                         _appendGalleryQrBtn(0, 'photo', currentSessionFolderLink);
-                        lvBroadcastDriveUpdate(filename, currentSessionFolderLink);
+                        window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                     }
                 } catch (e) {
                     console.warn('[Drive] Upload failed:', e.message);
