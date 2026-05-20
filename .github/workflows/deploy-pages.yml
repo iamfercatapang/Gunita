@@ -1,0 +1,70 @@
+name: Deploy to GitHub Pages
+
+# Runs on every push to Dev (the active development branch) and can also be
+# triggered manually from the Actions tab. The existing ci.yml workflow runs
+# the lint/typecheck/build matrix on the same push; this workflow focuses on
+# packaging the Vite build output and publishing it via the Pages action.
+#
+# If the build fails, no publish happens — the previously-published version
+# stays live on Pages.
+
+on:
+  push:
+    branches: [Dev]
+  workflow_dispatch:
+
+# Pages-from-Actions requires these scopes; declared here rather than at the
+# repo level so the workflow remains self-describing.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Don't pile up deployments: if a new push lands while a previous one is in
+# flight, finish the in-flight job and then deploy the latest commit.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (Vite)
+        run: npm run build
+        env:
+          # Optional: set this secret in the repo so the deployed Pages build
+          # uses your real Drive OAuth client. If unset, src/constants/index.ts
+          # falls back to the hardcoded constant so the build still succeeds.
+          VITE_DRIVE_CLIENT_ID: ${{ secrets.VITE_DRIVE_CLIENT_ID }}
+
+      - name: Disable Jekyll
+        # GitHub Pages defaults to running Jekyll, which strips files whose
+        # names begin with `_`. Vite occasionally emits assets like that.
+        run: touch dist/.nojekyll
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
