@@ -1,0 +1,168 @@
+/* =============================================================================
+ * Design tokens — primitive layer
+ * =============================================================================
+ *
+ * Raw palette and scales. Theme-independent. Semantic tokens (themes.css)
+ * resolve to these.
+ *
+ * Locked decisions (2026-05-22):
+ *   - Typography: Fraunces (display) + Inter (everything else)
+ *   - Themes: dark-kiosk + light-admin
+ *   - Radius scale: 4 / 8 / 16 / 28
+ *   - Motion: 150ms UI · 250ms overlays · 400ms hero
+ *
+ * Foundation only — nothing here visually changes the app until semantic
+ * tokens are referenced by component CSS.
+ * ============================================================================= */
+
+:root {
+  /* ─── Color palette ─── */
+
+  /* Graphite — neutral spine, 12 stops */
+  --color-graphite-0: #fafaf7;
+  --color-graphite-50: #f3f3ef;
+  --color-graphite-100: #e7e7e2;
+  --color-graphite-200: #d1d1ca;
+  --color-graphite-300: #b5b5ac;
+  --color-graphite-400: #8c8c82;
+  --color-graphite-500: #65655c;
+  --color-graphite-600: #45453f;
+  --color-graphite-700: #2e2e29;
+  --color-graphite-800: #1e1e1b;
+  --color-graphite-900: #131311;
+  --color-graphite-950: #0b0b0f;
+
+  /* Magenta — warm accent (existing brand pink, extended) */
+  --color-magenta-50: #fdf2f8;
+  --color-magenta-100: #fce7f3;
+  --color-magenta-200: #fbcfe8;
+  --color-magenta-300: #f9a8d4;
+  --color-magenta-400: #f472b6;
+  --color-magenta-500: #ec4899;
+  --color-magenta-600: #db2777;
+  --color-magenta-700: #be185d; /* existing brand pink */
+  --color-magenta-800: #9d174d;
+  --color-magenta-900: #831843;
+
+  /* Blue — cool accent for admin/info */
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-blue-800: #1e40af;
+  --color-blue-900: #1e3a8a;
+
+  /* Semantic accents — fixed across themes */
+  --color-success-500: #22c55e;
+  --color-success-600: #16a34a;
+  --color-warning-500: #f59e0b;
+  --color-warning-600: #d97706;
+  --color-danger-500: #ef4444;
+  --color-danger-600: #dc2626;
+
+  /* ─── Typography ─── */
+
+  /* Families */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+
+  /* Type scale — Inter base (functional UI) */
+  --text-xs: 0.75rem; /* 12px — microcopy */
+  --text-sm: 0.875rem; /* 14px — body small / form helper */
+  --text-base: 1rem; /* 16px — body */
+  --text-md: 1.125rem; /* 18px — emphasized body */
+  --text-lg: 1.25rem; /* 20px — section header */
+  --text-xl: 1.5rem; /* 24px — panel title */
+  --text-2xl: 1.875rem; /* 30px — page header */
+  --text-3xl: 2.25rem; /* 36px — section hero */
+  --text-4xl: 3rem; /* 48px — kiosk subtitle */
+  --text-5xl: 3.75rem; /* 60px — kiosk title */
+  --text-6xl: 4.5rem; /* 72px — kiosk hero */
+  --text-display-lg: 6rem; /* 96px — Fraunces, Welcome event-name */
+  --text-display-xl: 7.5rem; /* 120px — Fraunces, maximal hero */
+
+  /* Weights */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --weight-black: 800;
+
+  /* Line heights */
+  --leading-tight: 1.1;
+  --leading-snug: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* Letter spacing */
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.02em;
+  --tracking-wider: 0.05em;
+
+  /* ─── Spacing scale (4px base) ─── */
+  --space-0: 0;
+  --space-1: 0.25rem; /*  4px */
+  --space-2: 0.5rem; /*  8px */
+  --space-3: 0.75rem; /* 12px */
+  --space-4: 1rem; /* 16px */
+  --space-5: 1.25rem; /* 20px */
+  --space-6: 1.5rem; /* 24px */
+  --space-8: 2rem; /* 32px */
+  --space-10: 2.5rem; /* 40px */
+  --space-12: 3rem; /* 48px */
+  --space-16: 4rem; /* 64px */
+  --space-20: 5rem; /* 80px */
+  --space-24: 6rem; /* 96px */
+
+  /* ─── Radius scale (locked: 4 / 8 / 16 / 28) ─── */
+  --radius-sm: 4px; /* chips, badges */
+  --radius-md: 8px; /* form inputs, small cards */
+  --radius-lg: 16px; /* cards, panels */
+  --radius-xl: 28px; /* hero buttons, prominent panels */
+  --radius-full: 9999px; /* pills, avatars */
+
+  /* ─── Elevation (single scale) ─── */
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px rgba(15, 15, 17, 0.06), 0 1px 1px rgba(15, 15, 17, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 15, 17, 0.08), 0 2px 4px rgba(15, 15, 17, 0.05);
+  --shadow-lg: 0 12px 32px rgba(15, 15, 17, 0.12), 0 4px 12px rgba(15, 15, 17, 0.06);
+  --shadow-glow-accent: 0 0 0 1px rgba(190, 24, 93, 0.25), 0 8px 24px rgba(190, 24, 93, 0.32);
+
+  /* ─── Motion ─── */
+  --duration-ui: 150ms;
+  --duration-overlay: 250ms;
+  --duration-hero: 400ms;
+
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-hero: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* ─── Touch targets ─── */
+  --touch-min: 44px; /* Apple HIG minimum */
+  --touch-comfy: 56px; /* kiosk default */
+  --touch-hero: 96px; /* primary CTA */
+
+  /* ─── Z-index scale ─── */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-overlay: 1000;
+  --z-modal: 2000;
+  --z-toast: 3000;
+  --z-camera-lost: 9000; /* must be above everything else */
+}
+
+/* Honor reduced-motion at the token level — everything that consumes
+   duration tokens will shrink to ~0 automatically. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-ui: 1ms;
+    --duration-overlay: 1ms;
+    --duration-hero: 1ms;
+  }
+}
