@@ -59,13 +59,53 @@ export function computeLayout(def: LayoutDef): ComputedLayout {
 }
 
 /**
+ * Draw `source` into the rectangle (dx, dy, dw, dh) using object-fit:cover
+ * semantics: scale the source so it fully covers the destination rectangle,
+ * then center-crop the overflow. Optionally mirror horizontally — used for
+ * selfie cameras so the recorded frame matches what the guest saw on the
+ * viewfinder.
+ *
+ * Pure: no DOM lookups, no shared state. Sources of any aspect ratio (4:3,
+ * 16:9, vertical phone) render without stretch or letterbox.
+ */
+export function drawCoverFrame(
+  ctx: CanvasRenderingContext2D,
+  source: CanvasImageSource,
+  sourceW: number,
+  sourceH: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number,
+  opts: { mirror?: boolean } = {},
+): void {
+  if (sourceW === 0 || sourceH === 0 || dw === 0 || dh === 0) return;
+  const scale = Math.max(dw / sourceW, dh / sourceH);
+  const srcW = Math.round(dw / scale);
+  const srcH = Math.round(dh / scale);
+  const srcX = Math.max(0, Math.round((sourceW - srcW) / 2));
+  const srcY = Math.max(0, Math.round((sourceH - srcH) / 2));
+
+  if (opts.mirror) {
+    ctx.save();
+    ctx.translate(dx + dw, dy);
+    ctx.scale(-1, 1);
+    ctx.drawImage(source, srcX, srcY, srcW, srcH, 0, 0, dw, dh);
+    ctx.restore();
+  } else {
+    ctx.drawImage(source, srcX, srcY, srcW, srcH, dx, dy, dw, dh);
+  }
+}
+
+/**
  * Paint one photo into a slot on the composition canvas. Prefers
  * `ImageCapture.takePhoto()` for full sensor resolution; falls back to
  * grabbing the current frame from the supplied `<video>` element if the
  * browser doesn't support ImageCapture (Safari, Firefox).
  *
  * The result is mirrored horizontally to match what the guest sees in the
- * viewfinder during a selfie capture.
+ * viewfinder during a selfie capture, and uses object-fit:cover so any
+ * camera aspect ratio renders without stretch.
  */
 export async function drawPhoto(
   ctx: CanvasRenderingContext2D,
@@ -103,22 +143,7 @@ export async function drawPhoto(
 
   const fW = sourceWidth(source);
   const fH = sourceHeight(source);
-  if (fW === 0 || fH === 0) {
-    if (releaseBitmap) releaseBitmap.close();
-    return;
-  }
-
-  const scale = Math.max(slotW / fW, slotH / fH);
-  const srcW = Math.round(slotW / scale);
-  const srcH = Math.round(slotH / scale);
-  const srcX = Math.max(0, Math.round((fW - srcW) / 2));
-  const srcY = Math.max(0, Math.round((fH - srcH) / 2));
-
-  ctx.save();
-  ctx.translate(x + slotW, y);
-  ctx.scale(-1, 1);
-  ctx.drawImage(source as CanvasImageSource, srcX, srcY, srcW, srcH, 0, 0, slotW, slotH);
-  ctx.restore();
+  drawCoverFrame(ctx, source as CanvasImageSource, fW, fH, x, y, slotW, slotH, { mirror: true });
 
   if (releaseBitmap) releaseBitmap.close();
 }
