@@ -66,6 +66,17 @@ declare global {
           slotW: number,
           slotH: number,
         ) => Promise<void>;
+        drawCoverFrame: (
+          ctx: CanvasRenderingContext2D,
+          source: CanvasImageSource,
+          sourceW: number,
+          sourceH: number,
+          dx: number,
+          dy: number,
+          dw: number,
+          dh: number,
+          opts?: { mirror?: boolean },
+        ) => void;
         makeFilename: (eventName: string, ext?: string) => string;
         saveBlobLocally: (blob: Blob, filename: string, deps: LocalSaveDeps) => Promise<void>;
         downloadBlob: (blob: Blob, filename: string) => void;

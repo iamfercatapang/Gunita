@@ -1719,14 +1719,13 @@ $(document).ready(function() {
             const ctx = canvas.getContext('2d');
             const overlayImg = appConfig.vgOverlay.img;
 
-            // rAF loop: draw camera frame then overlay
+            // rAF loop: draw camera frame (cover-fit + mirrored) then overlay.
+            // Using drawCoverFrame from window.PB.capture so non-16:9 cameras
+            // (4:3 webcams, vertical phone cams) don't get stretched.
             function compositeFrame() {
-                ctx.save();
-                // Mirror horizontally to match how selfie cameras appear on screen
-                ctx.translate(1920, 0);
-                ctx.scale(-1, 1);
-                ctx.drawImage(videoEl, 0, 0, 1920, 1080);
-                ctx.restore();
+                const fW = videoEl.videoWidth  || 1920;
+                const fH = videoEl.videoHeight || 1080;
+                window.PB.capture.drawCoverFrame(ctx, videoEl, fW, fH, 0, 0, 1920, 1080, { mirror: true });
                 ctx.drawImage(overlayImg, 0, 0, 1920, 1080);
                 _vgFrameAnimId = requestAnimationFrame(compositeFrame);
             }
