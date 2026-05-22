@@ -84,7 +84,7 @@ $(document).ready(function() {
     $('#edit-vg-couple-name').on('input', function() {
         const name = $(this).val();
         appConfig.vgCoupleName = name;
-        $('#vg-couple-name-preview').text(name || 'Alice & Dan');
+        $('#vg-couple-name-preview').text(name || 'Ken & Alexa');
         const sub = _getVgPanelSubtitle();
         $('#prev-vg-subtitle').text(sub);
         if (appConfig.captureMode === 'videoguestbook') {
@@ -2054,14 +2054,14 @@ $(document).ready(function() {
             }
         }
 
-        // Offer Drive QR code (VG mode: guest declined PB or PB not enabled)
-        if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
-            await showDriveQrPrompt();
-        }
-
-        // Show VG thank-you then reset
-        if (appConfig.vgThankYouEnabled) {
-            await showVgThankYou();
+        // Consolidated Done screen — shows the QR card (when Drive is on) and
+        // the Fraunces thank-you headline (when vgThankYouEnabled). Skipped
+        // entirely if neither applies, preserving the legacy fast-path back
+        // to welcome.
+        const wantsDoneScreen = !!appConfig.vgThankYouEnabled
+            || (!!appConfig.vgSaveDrive && window.PB.drive.isSignedIn());
+        if (wantsDoneScreen) {
+            await showVgDoneScreen();
         }
 
         $('#vg-booth').hide();
@@ -2146,113 +2146,170 @@ $(document).ready(function() {
         }
     }
 
-    function showDriveQrPrompt() {
+    // Consolidated post-capture Done screen. Replaces the legacy three-overlay
+    // chain (Drive-QR-ask → Drive-QR-show → ThankYou). Caller decides whether
+    // to show it via the wantsDoneScreen check; this function then renders
+    // whichever sections apply (headline, QR card, both, or just the action
+    // button) and auto-dismisses via a draining ring countdown.
+    // Two-phase post-capture screen:
+    //   Phase A (when Drive QR is configured): QR card + "All done" button
+    //     (no draining ring). Guest taps All done OR a 90s safety timeout
+    //     fires → QR card fades out → Phase B begins.
+    //   Phase B (always, when reached): bg image (or dark) + All-done button
+    //     with a visible ring counting down vgThankYouDuration. Guest can
+    //     tap to advance early; otherwise the ring drains to welcome.
+    function showVgDoneScreen() {
         return new Promise(function(resolve) {
-            const askOverlay  = document.getElementById('vg-drive-qr-prompt');
-            const showOverlay = document.getElementById('vg-drive-qr-show');
-            const yesBtn      = document.getElementById('btn-vg-dqr-yes');
-            const noBtn       = document.getElementById('btn-vg-dqr-no');
-            const doneBtn     = document.getElementById('btn-vg-drive-qr-done');
-            const spinner     = document.getElementById('vg-drive-qr-spinner');
-            const qrContainer = document.getElementById('vg-drive-qr-code');
+            const overlay      = document.getElementById('vg-done-screen');
+            const bgImg        = document.getElementById('vg-done-bg-img');
+            const qrCard       = document.getElementById('vg-done-qr-card');
+            const qrTarget     = document.getElementById('vg-done-qr-image');
+            const qrLinkEl     = document.getElementById('vg-done-qr-link');
+            const doneBtn      = document.getElementById('btn-vg-done');
+            const doneTimerEl  = doneBtn ? doneBtn.querySelector('.vg-pbo-no-timer') : null;
+            const ring         = document.getElementById('vg-done-ring-progress');
+            const secsEl       = document.getElementById('vg-done-secs');
 
-            // Reset state from previous session
-            qrContainer.innerHTML = '';
-            qrContainer.style.display = 'none';
-            spinner.style.display = 'flex';
-            askOverlay.style.display = 'flex';
+            const showQr = !!appConfig.vgSaveDrive && window.PB.drive.isSignedIn();
+            const TY_SECS = Math.max(2, appConfig.vgThankYouDuration || 5);
+            const QR_SAFETY_MS = 90000; // safety timeout in case guest walks away
+            let qrPhaseTimeoutId = null;
+            let tyTimerId        = null;
+            let tyTickId         = null;
+            let qrPollId         = null;
+            let resolved         = false;
 
-            function cleanup() {
-                askOverlay.style.display = 'none';
-                showOverlay.style.display = 'none';
-                yesBtn.removeEventListener('click', onYes);
-                noBtn.removeEventListener('click', onNo);
-                doneBtn.removeEventListener('click', onDone);
+            // Configured background image (if any).
+            if (appConfig.vgThankYouImage) {
+                bgImg.src = appConfig.vgThankYouImage.objectUrl;
+                overlay.classList.add('has-bg-image');
+            } else {
+                bgImg.src = '';
+                overlay.classList.remove('has-bg-image');
             }
 
-            function onNo() { cleanup(); resolve(); }
-            function onDone() { cleanup(); resolve(); }
+            // Reset button visibility from any prior session.
+            doneBtn.style.display = '';
+            doneBtn.style.opacity = '';
+            doneBtn.style.transition = '';
 
-            function onYes() {
-                askOverlay.style.display = 'none';
-                showOverlay.style.display = 'flex';
-                waitForLinkAndShowQr();
+            overlay.style.display = 'flex';
+
+            if (showQr) {
+                // ─── Phase A: QR modal ─────────────────────────────────────
+                qrCard.classList.remove('is-ready');
+                qrTarget.innerHTML = '';
+                qrLinkEl.textContent = '';
+                qrCard.style.display = 'flex';
+                // Re-trigger the entrance animation by force-reflowing.
+                qrCard.style.animation = 'none';
+                void qrCard.offsetWidth;
+                qrCard.style.animation = '';
+                // All-done is visible from the start; ring is hidden during
+                // Phase A so the guest isn't pressured to scan against a clock.
+                if (doneTimerEl) doneTimerEl.style.display = 'none';
+                _waitForLinkAndShowQr();
+
+                qrPhaseTimeoutId = setTimeout(_endQrPhase, QR_SAFETY_MS);
+                doneBtn.addEventListener('click', _endQrPhase, { once: true });
+            } else {
+                // No QR — go straight to Phase B with the ring countdown.
+                qrCard.style.display = 'none';
+                if (doneTimerEl) doneTimerEl.style.display = '';
+                _startThankYouPhase();
             }
 
-            function waitForLinkAndShowQr() {
+            function _endQrPhase() {
+                clearTimeout(qrPhaseTimeoutId);
+                qrPhaseTimeoutId = null;
+                doneBtn.removeEventListener('click', _endQrPhase);
+                if (qrPollId) {
+                    clearTimeout(qrPollId);
+                    qrPollId = null;
+                }
+                // Fade only the QR card; keep the All-done button visible so
+                // the guest can still dismiss during the thank-you pause.
+                qrCard.style.transition = 'opacity 250ms ease-out';
+                qrCard.style.opacity = '0';
+                setTimeout(function() {
+                    qrCard.style.display = 'none';
+                    qrCard.style.opacity = '';
+                    qrCard.style.transition = '';
+                    // Reveal the ring + start the thank-you countdown.
+                    if (doneTimerEl) doneTimerEl.style.display = '';
+                    _startThankYouPhase();
+                }, 260);
+            }
+
+            function _startThankYouPhase() {
+                const total = TY_SECS;
+                let remaining = total;
+
+                if (ring) {
+                    ring.style.transition = 'none';
+                    ring.style.strokeDashoffset = '0';
+                    void ring.getBoundingClientRect();
+                    ring.style.transition = 'stroke-dashoffset 1s linear';
+                }
+                if (secsEl) secsEl.textContent = String(total);
+                tyTickId = setInterval(function() {
+                    remaining--;
+                    const drained = ((total - remaining) / total) * 100;
+                    if (ring) ring.style.strokeDashoffset = String(drained);
+                    if (secsEl) secsEl.textContent = String(Math.max(0, remaining));
+                    if (remaining <= 0) _finish();
+                }, 1000);
+                doneBtn.addEventListener('click', _finish, { once: true });
+            }
+
+            function _finish() {
+                if (resolved) return;
+                resolved = true;
+                clearTimeout(qrPhaseTimeoutId);
+                clearTimeout(tyTimerId);
+                clearInterval(tyTickId);
+                if (qrPollId) clearTimeout(qrPollId);
+                doneBtn.removeEventListener('click', _finish);
+                doneBtn.removeEventListener('click', _endQrPhase);
+                overlay.style.display = 'none';
+                resolve();
+            }
+
+            function _waitForLinkAndShowQr() {
                 const MAX_WAIT_MS = 30000;
                 const POLL_MS     = 500;
                 let elapsed       = 0;
 
                 function poll() {
                     if (currentSessionFolderLink) {
-                        qrContainer.innerHTML = '';
+                        qrTarget.innerHTML = '';
                         try {
-                            new QRCode(qrContainer, {
+                            new QRCode(qrTarget, {
                                 text: currentSessionFolderLink,
-                                width: 200,
-                                height: 200,
-                                colorDark: '#000000',
+                                width: 178,
+                                height: 178,
+                                colorDark: '#0b0b0f',
                                 colorLight: '#ffffff',
                                 correctLevel: QRCode.CorrectLevel.M
                             });
+                            qrLinkEl.textContent = currentSessionFolderLink;
                         } catch (e) {
                             console.warn('[QR] Drive QR generation failed:', e);
-                            qrContainer.innerHTML = '<div style="color:#9ca3af;font-size:0.85rem;padding:1rem;">Could not generate QR code.</div>';
+                            qrTarget.innerHTML = '<div style="color:#9ca3af;font-size:0.78rem;padding:0.5rem;text-align:center;line-height:1.4;">Could not generate QR code.</div>';
                         }
-                        spinner.style.display = 'none';
-                        qrContainer.style.display = 'block';
+                        qrCard.classList.add('is-ready');
                         return;
                     }
                     elapsed += POLL_MS;
                     if (elapsed >= MAX_WAIT_MS) {
-                        spinner.style.display = 'none';
-                        qrContainer.innerHTML = '<div style="color:#9ca3af;font-size:0.85rem;padding:1rem;">Upload still in progress.<br>See the operator for your link.</div>';
-                        qrContainer.style.display = 'block';
+                        qrTarget.innerHTML = '<div style="color:#9ca3af;font-size:0.78rem;padding:0.5rem;text-align:center;line-height:1.4;">Upload in progress.<br>See the operator for your link.</div>';
+                        qrCard.classList.add('is-ready');
                         return;
                     }
-                    setTimeout(poll, POLL_MS);
+                    qrPollId = setTimeout(poll, POLL_MS);
                 }
                 poll();
             }
-
-            yesBtn.addEventListener('click', onYes);
-            noBtn.addEventListener('click', onNo);
-            doneBtn.addEventListener('click', onDone);
-        });
-    }
-
-    function showVgThankYou() {
-        return new Promise(resolve => {
-            const overlay  = document.getElementById('vg-thankyou-overlay');
-            const bgImg    = document.getElementById('vg-ty-bg-img');
-            const gradient = document.getElementById('vg-ty-gradient');
-            const doneBtn  = document.getElementById('btn-vg-ty-done');
-            const secs     = Math.max(2, appConfig.vgThankYouDuration || 5);
-
-            // Apply background image if configured
-            if (appConfig.vgThankYouImage) {
-                bgImg.src = appConfig.vgThankYouImage.objectUrl;
-                bgImg.style.display = '';
-                gradient.style.display = '';
-            } else {
-                bgImg.style.display = 'none';
-                bgImg.src = '';
-                gradient.style.display = 'none';
-            }
-
-            overlay.style.display = 'flex';
-            let timerId = null;
-
-            function advance() {
-                clearTimeout(timerId);
-                overlay.style.display = 'none';
-                doneBtn.removeEventListener('click', advance);
-                resolve();
-            }
-
-            doneBtn.addEventListener('click', advance);
-            timerId = setTimeout(advance, secs * 1000);
         });
     }
     function showVgPreview(blobUrl) {
@@ -2441,12 +2498,14 @@ $(document).ready(function() {
 
         const previewMs = Math.max(appConfig.reviewTime * 1000, 1000);
         setTimeout(async () => {
-            // Offer Drive QR code for VG→PB sessions (guest chose photo strip after video)
-            if (opts.continueSession && appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
-                await showDriveQrPrompt();
-            }
-            if (appConfig.vgThankYouEnabled) {
-                await showVgThankYou();
+            // Show consolidated Done screen for VG→PB chained sessions when
+            // either ThankYou or Drive (signed-in) is configured.
+            const wantsDoneScreen = (opts.continueSession
+                && !!appConfig.vgSaveDrive
+                && window.PB.drive.isSignedIn())
+                || !!appConfig.vgThankYouEnabled;
+            if (wantsDoneScreen) {
+                await showVgDoneScreen();
             }
             $('#processing-overlay h2').text('Processing...');
             $('.spinner').show();
@@ -2896,7 +2955,7 @@ $(document).ready(function() {
         const vgSubtitle = _getVgPanelSubtitle();
         $('#edit-vg-panel-title').val(vgTitle);
         $('#edit-vg-couple-name').val(appConfig.vgCoupleName || '');
-        $('#vg-couple-name-preview').text(appConfig.vgCoupleName || 'Alice & Dan');
+        $('#vg-couple-name-preview').text(appConfig.vgCoupleName || 'Ken & Alexa');
         $('#live-ws-title-vg').text(vgTitle);
         $('#live-ws-subtitle-vg').text(vgSubtitle);
         $('#prev-vg-title').text(vgTitle);

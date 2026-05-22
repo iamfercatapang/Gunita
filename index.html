@@ -30,7 +30,7 @@
         
         <aside class="sidebar">
             <div class="sidebar-header">
-                <button id="btn-launch-booth" class="btn-primary w-100"><i class="fa-solid fa-rocket"></i> Launch Kiosk Mode</button>
+                <button id="btn-launch-booth" class="btn-primary w-100" style="padding: 0.6rem; font-size: 0.9rem;"><i class="fa-solid fa-rocket"></i> Launch Kiosk</button>
                 <div id="camera-error-card" style="display:none; margin-top:0.75rem; padding:0.75rem 1rem; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; font-size:0.82rem; color:#dc2626;">
                     <strong id="camera-error-title"></strong>
                     <p id="camera-error-msg" style="margin:0.3rem 0 0.5rem; color:#991b1b; line-height:1.4;"></p>
@@ -752,19 +752,14 @@
                         </div>
 
                         <div class="tool-group" style="border-top:1px solid #e5e7eb; padding-top:1.25rem; margin-top:0.5rem;">
-                            <label style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:#111827;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-                                Video Guestbook Panel
-                            </label>
-                            <p style="color:#9ca3af; font-size:0.78rem; margin:0.25rem 0 0.75rem;">Shown on the right panel when Video Guestbook mode is active.</p>
                             <div style="margin-bottom:0.75rem;">
-                                <label style="font-size:0.82rem; font-weight:600; color:#374151; display:block; margin-bottom:0.3rem;">Panel Title</label>
+                                <label style="font-size:0.82rem; font-weight:600; color:#374151; display:block; margin-bottom:0.3rem;">Hero Title</label>
                                 <input type="text" id="edit-vg-panel-title" class="text-input" placeholder="Raise a Toast!">
                             </div>
                             <div>
                                 <label style="font-size:0.82rem; font-weight:600; color:#374151; display:block; margin-bottom:0.3rem;">Couple / Guest of Honor Name</label>
-                                <input type="text" id="edit-vg-couple-name" class="text-input" placeholder="e.g. Alice &amp; Dan">
-                                <p style="margin:0.35rem 0 0; font-size:0.78rem; color:#9ca3af;">Shown as: &ldquo;Answer just a few questions on video for <em id="vg-couple-name-preview">Alice &amp; Dan</em>.&rdquo;</p>
+                                <input type="text" id="edit-vg-couple-name" class="text-input" placeholder="e.g. Ken &amp; Alexa">
+                                <p style="margin:0.35rem 0 0; font-size:0.78rem; color:#9ca3af;">Shown as: &ldquo;Answer just a few questions on video for <em id="vg-couple-name-preview">Ken &amp; Alexa</em>.&rdquo;</p>
                             </div>
                         </div>
                     </div>
@@ -1002,12 +997,10 @@
                     <div class="settings-section">
                         <h3 class="section-title">Preview</h3>
                         <div class="settings-card" style="padding:0; overflow:hidden; border-radius:12px;">
-                            <div id="ty-preview-frame" class="ty-preview-frame">
+                            <div id="ty-preview-frame" class="ty-preview-frame" data-theme="dark">
                                 <img id="ty-preview-bg" src="" alt="" style="display:none;">
                                 <div class="ty-preview-content">
-                                    <p class="ty-preview-emoji"><i class="fa-solid fa-champagne-glasses"></i></p>
-                                    <h2 class="ty-preview-title">Thank You!</h2>
-                                    <button class="ty-done-btn ty-done-btn-preview" disabled>Done</button>
+                                    <button class="ty-done-btn ty-done-btn-preview" disabled>All done</button>
                                 </div>
                             </div>
                         </div>
@@ -1394,13 +1387,6 @@
             </button>
         </div>
 
-        <!-- ========== VG THANK YOU OVERLAY ========== -->
-        <div id="vg-thankyou-overlay" style="display:none; position:absolute; inset:0; z-index:60; align-items:flex-end; justify-content:center; padding-bottom:8vh;">
-            <img id="vg-ty-bg-img" src="" alt="" style="display:none; position:absolute; inset:0; width:100%; height:100%; object-fit:cover; z-index:0;">
-            <div class="vg-ty-gradient" id="vg-ty-gradient"></div>
-            <button id="btn-vg-ty-done" class="ty-done-btn">Done</button>
-        </div>
-
         <!-- ========== VG → PB OFFER OVERLAY ==========
              Restyled cross-sell moment. Backdrop is a frozen frame of the
              guest's just-recorded video (drawn to canvas at show-time), with
@@ -1452,33 +1438,43 @@
             </div>
         </div>
 
-        <!-- ========== VG DRIVE QR — ASK ========== -->
-        <div id="vg-drive-qr-prompt" style="display:none; position:absolute; inset:0; z-index:66; background:rgba(0,0,0,0.93); flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1rem; padding:2rem;">
-            <i class="fa-brands fa-google-drive" style="font-size:3.5rem; color:#4ade80; opacity:0.85;"></i>
-            <div class="vg-pbo-title">Would you like a copy?</div>
-            <div class="vg-pbo-subtitle">Scan the QR code and get your session files from Google Drive</div>
-            <div class="vg-pbo-buttons">
-                <button id="btn-vg-dqr-yes" class="vg-pbo-btn vg-pbo-btn-yes">
-                    <i class="fa-solid fa-qrcode"></i> Yes, show me!
-                </button>
-                <button id="btn-vg-dqr-no" class="vg-pbo-btn vg-pbo-btn-no">
-                    No thanks
+        <!-- ========== VG DONE SCREEN ==========
+             Consolidated post-capture screen. Replaces the three legacy
+             overlays (vg-drive-qr-prompt, vg-drive-qr-show, vg-thankyou-overlay)
+             with a single Fraunces "Thank you" page that optionally shows the
+             Drive QR card and auto-dismisses via the ring countdown. -->
+        <div id="vg-done-screen" style="display:none;">
+            <img id="vg-done-bg-img" class="vg-done-bg-img" src="" alt="">
+            <div class="vg-done-content">
+                <div class="vg-done-qr-card" id="vg-done-qr-card" style="display:none;">
+                    <div class="vg-done-qr-heading-row">
+                        <span class="vg-done-qr-badge" aria-hidden="true"></span>
+                        <p class="vg-done-qr-heading">Want a copy?</p>
+                    </div>
+                    <div class="vg-done-qr-body">
+                        <div class="vg-done-qr-target">
+                            <div class="vg-done-qr-spinner" id="vg-done-qr-spinner">
+                                <div class="vg-dqr-spinner-ring"></div>
+                            </div>
+                            <div class="vg-done-qr-image" id="vg-done-qr-image"></div>
+                        </div>
+                        <div class="vg-done-qr-copy">
+                            <p class="vg-done-qr-label">Scan to open your session<br>on Google Drive</p>
+                            <p class="vg-done-qr-link" id="vg-done-qr-link"></p>
+                        </div>
+                    </div>
+                </div>
+                <button id="btn-vg-done" class="vg-done-btn">
+                    <span>All done</span>
+                    <span class="vg-pbo-no-timer">
+                        <svg class="vg-pbo-ring" viewBox="0 0 36 36" aria-hidden="true">
+                            <circle class="vg-pbo-ring-track" cx="18" cy="18" r="16" fill="none"></circle>
+                            <circle class="vg-pbo-ring-progress" id="vg-done-ring-progress" cx="18" cy="18" r="16" fill="none" pathLength="100"></circle>
+                        </svg>
+                        <span class="vg-pbo-secs" id="vg-done-secs"></span>
+                    </span>
                 </button>
             </div>
-        </div>
-
-        <!-- ========== VG DRIVE QR — SHOW ========== -->
-        <div id="vg-drive-qr-show" style="display:none; position:absolute; inset:0; z-index:66; background:rgba(0,0,0,0.96); flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1.25rem; padding:2rem;">
-            <i class="fa-brands fa-google-drive" style="font-size:2.5rem; color:#4ade80; opacity:0.9;"></i>
-            <div class="vg-pbo-title" style="font-size:2rem;">Your session is ready!</div>
-            <div class="vg-pbo-subtitle">Point your phone camera at the QR code to access your files</div>
-            <div id="vg-drive-qr-spinner" style="width:220px; height:220px; display:flex; align-items:center; justify-content:center;">
-                <div class="vg-dqr-spinner-ring"></div>
-            </div>
-            <div id="vg-drive-qr-code" style="display:none; background:#fff; border-radius:12px; padding:12px;"></div>
-            <button id="btn-vg-drive-qr-done" class="vg-pbo-btn vg-pbo-btn-yes" style="margin-top:0.5rem; background:rgba(255,255,255,0.12); border:2px solid rgba(255,255,255,0.3); box-shadow:none;">
-                <i class="fa-solid fa-check"></i> Done
-            </button>
         </div>
 
         <!-- ============================================ -->
@@ -1486,11 +1482,11 @@
 
     <!-- ========== PIN DIALOG ========== -->
     <div id="pin-overlay" style="display:none; position:fixed; inset:0; z-index:9997; background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
-        <div style="background:#fff; border-radius:16px; padding:2rem; width:300px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+        <div class="kiosk-card" style="background:#fff; padding:2.5rem; width:340px; text-align:center;">
             <h2 style="margin:0 0 0.4rem; font-size:1.2rem; font-weight:700; color:#111827;">Admin Access</h2>
             <p style="margin:0 0 1.25rem; font-size:0.85rem; color:#6b7280;">Enter PIN to exit Kiosk Mode</p>
-            <div id="pin-display" style="letter-spacing:0.5rem; font-size:1.8rem; font-weight:700; color:#111827; height:2.5rem; margin-bottom:1.25rem;">––––</div>
-            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.5rem; margin-bottom:0.5rem;">
+            <div id="pin-display" style="letter-spacing:0.8rem; font-size:2rem; font-weight:700; color:#111827; height:3rem; margin-bottom:1.5rem; display:flex; align-items:center; justify-content:center;">––––</div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem; margin-bottom:1rem;">
                 <button class="pin-key" data-k="1">1</button>
                 <button class="pin-key" data-k="2">2</button>
                 <button class="pin-key" data-k="3">3</button>
@@ -1500,7 +1496,7 @@
                 <button class="pin-key" data-k="7">7</button>
                 <button class="pin-key" data-k="8">8</button>
                 <button class="pin-key" data-k="9">9</button>
-                <button class="pin-key pin-key-cancel" id="btn-pin-cancel">Cancel</button>
+                <button class="pin-key pin-key-cancel" id="btn-pin-cancel" style="font-size:0.9rem;">Cancel</button>
                 <button class="pin-key" data-k="0">0</button>
                 <button class="pin-key pin-key-del" id="btn-pin-del">⌫</button>
             </div>

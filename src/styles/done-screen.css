@@ -1,0 +1,359 @@
+/* =============================================================================
+ * VG Done screen — consolidated post-capture
+ * =============================================================================
+ *
+ * Replaces the three legacy overlays (Drive QR ask, Drive QR show, ThankYou)
+ * with a single dark editorial screen. Renders any combination of:
+ *   - Fraunces "Thank you" headline + subtitle (when vgThankYouEnabled)
+ *   - Drive QR card in a glass panel (when vgSaveDrive && Drive signed in)
+ *   - "All done" pill with a thin draining ring countdown
+ *
+ * Auto-dismisses to the welcome screen; guest can also tap All done.
+ *
+ * Theme: scoped to [data-theme="dark"] (set on #kiosk-mode).
+ * Ring + secs label reuse .vg-pbo-no-timer / .vg-pbo-ring* styles from
+ * pb-offer.css for consistency.
+ * ============================================================================= */
+
+#vg-done-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8);
+  overflow: hidden;
+  background: var(--color-graphite-950);
+}
+
+/* Configured Thank You image, full-bleed. Hidden when no image set. */
+.vg-done-bg-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+  display: none;
+}
+
+#vg-done-screen.has-bg-image .vg-done-bg-img {
+  display: block;
+}
+
+.vg-done-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-8);
+  width: 100%;
+  max-width: 640px;
+}
+
+/* ─── Drive QR card — the focal "pop" element ─────────────────────────────── */
+.vg-done-qr-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--kiosk-radius, var(--radius-lg));
+  padding: var(--space-6) var(--space-8);
+  backdrop-filter: var(--glass-blur, blur(12px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(12px));
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  max-width: 560px;
+  width: 100%;
+  box-shadow: var(--shadow-hard, 0 20px 60px rgba(0, 0, 0, 0.7)), inset 0 1px 0
+    rgba(255, 255, 255, 0.08);
+  /* Entrance: scale + fade in. JS re-triggers by removing/adding a class
+     on each show; @keyframes runs once. */
+  animation: vgDoneCardIn 480ms var(--ease-hero) both;
+}
+
+@keyframes vgDoneCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vg-done-qr-card {
+    animation: none;
+  }
+}
+
+/* Subtle magenta glow band at top of the card — anchors the eye. */
+.vg-done-qr-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--color-magenta-400) 50%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Heading row: magenta dot badge + uppercase tracked label. */
+.vg-done-qr-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+}
+
+.vg-done-qr-badge {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-magenta-500);
+  box-shadow: 0 0 12px rgba(236, 72, 153, 0.7);
+  flex-shrink: 0;
+  /* Gentle pulse to draw the eye without being noisy. */
+  animation: vgDoneBadgePulse 2.2s ease-in-out infinite;
+}
+
+@keyframes vgDoneBadgePulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 12px rgba(236, 72, 153, 0.7);
+  }
+  50% {
+    transform: scale(1.18);
+    box-shadow: 0 0 18px rgba(236, 72, 153, 0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vg-done-qr-badge {
+    animation: none;
+  }
+}
+
+.vg-done-qr-heading {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--color-magenta-300);
+  margin: 0;
+}
+
+.vg-done-qr-body {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  justify-content: center;
+}
+
+/* Square target that always reserves the QR area, whether spinner or image. */
+.vg-done-qr-target {
+  position: relative;
+  width: 192px;
+  height: 192px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  background: #ffffff;
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.vg-done-qr-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.vg-done-qr-spinner .vg-dqr-spinner-ring {
+  width: 64px;
+  height: 64px;
+  border: 5px solid var(--color-graphite-200);
+  border-top-color: var(--color-magenta-700);
+  border-radius: 50%;
+  animation: vgDoneQrSpin 0.9s linear infinite;
+}
+
+@keyframes vgDoneQrSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vg-done-qr-image {
+  display: none;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.vg-done-qr-image > * {
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.vg-done-qr-card.is-ready .vg-done-qr-spinner {
+  display: none;
+}
+
+.vg-done-qr-card.is-ready .vg-done-qr-image {
+  display: flex;
+}
+
+.vg-done-qr-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  text-align: left;
+  min-width: 0;
+  flex: 1;
+}
+
+.vg-done-qr-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+  line-height: var(--leading-snug);
+}
+
+.vg-done-qr-link {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  word-break: break-all;
+  margin: 0;
+  line-height: var(--leading-normal);
+  max-width: 240px;
+}
+
+.vg-done-qr-link:empty {
+  display: none;
+}
+
+/* ─── Action button ───────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-done-screen .vg-done-btn {
+  height: var(--touch-hero);
+  padding: 0 var(--space-8);
+  padding-right: var(--space-6);
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: var(--glass-blur, blur(12px));
+  -webkit-backdrop-filter: var(--glass-blur, blur(12px));
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: var(--shadow-soft, 0 12px 40px rgba(0, 0, 0, 0.4)), inset 0 1px 0
+    rgba(255, 255, 255, 0.18);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  flex-shrink: 0;
+  justify-content: center;
+  min-width: 220px;
+  transition: background var(--duration-ui) var(--ease-out), border-color var(--duration-ui)
+    var(--ease-out), box-shadow var(--duration-ui) var(--ease-out), transform var(--duration-ui)
+    var(--ease-out);
+}
+
+[data-theme="dark"] #vg-done-screen .vg-done-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.34);
+  box-shadow: var(--shadow-soft, 0 14px 44px rgba(0, 0, 0, 0.45)), inset 0 1px 0
+    rgba(255, 255, 255, 0.24);
+}
+
+[data-theme="dark"] #vg-done-screen .vg-done-btn:active {
+  transform: scale(0.97);
+}
+
+/* ─── Compact viewport tuning ─────────────────────────────────────────────── */
+@media (max-height: 720px) {
+  .vg-done-content {
+    gap: var(--space-5);
+  }
+  .vg-done-qr-card {
+    padding: var(--space-4) var(--space-5);
+  }
+  .vg-done-qr-target {
+    width: 160px;
+    height: 160px;
+  }
+  [data-theme="dark"] #vg-done-screen .vg-done-btn {
+    height: var(--touch-comfy);
+    min-width: 200px;
+  }
+}
+
+@media (max-width: 600px) {
+  .vg-done-qr-body {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+  .vg-done-qr-copy {
+    align-items: center;
+    text-align: center;
+  }
+}
+
+/* =============================================================================
+ * Admin live preview — Thank You Screen panel
+ * =============================================================================
+ *
+ * Reskins the existing .ty-preview-frame to match the new Done-screen design.
+ * ============================================================================= */
+
+[data-theme="dark"].ty-preview-frame {
+  background: var(--color-graphite-950);
+}
+
+[data-theme="dark"].ty-preview-frame .ty-preview-content {
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  backdrop-filter: none;
+  border-radius: 0;
+  padding: var(--space-4) var(--space-3);
+  gap: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+[data-theme="dark"].ty-preview-frame .ty-done-btn {
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-5);
+  background: transparent;
+  border: 1.5px solid var(--border-strong);
+  color: var(--text-primary);
+}
