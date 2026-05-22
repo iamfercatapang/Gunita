@@ -246,6 +246,94 @@
   flex-wrap: wrap;
 }
 
+/* Horizontal field-row: input + button(s) on the same line, input flex-grows. */
+.admin-form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.admin-form-row > select.text-input,
+.admin-form-row > input.text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-form-row > .btn-outline,
+.admin-form-row > .btn-primary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Smaller button variant for inline use within forms. */
+.btn-small {
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Hairline divider above an element — used to separate slider-groups + the
+   filename helper at the bottom of Save Destination. */
+[data-theme="dark"] .admin-form-divider-top {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* Subgroup within an admin-form-card-body (e.g. Drive sub-config inside
+   Save Destination). Indented + dividers above. */
+[data-theme="dark"] .admin-form-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.admin-form-subgroup-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Test preview slot — used by the Camera section to show the live feed. */
+.admin-form-test-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+.admin-form-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+[data-theme="dark"] .admin-form-test-header > span {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.admin-form-test-preview > video {
+  width: 100%;
+  max-height: 260px;
+  border-radius: var(--radius-md);
+  background: var(--color-graphite-950);
+  display: block;
+  object-fit: contain;
+}
+
 /* ─── Security panel specifics ────────────────────────────────────────────── */
 
 .kiosk-pin-status {
@@ -439,6 +527,81 @@
 }
 
 [data-theme="dark"] .feature-toggle-row .feature-icon svg {
+  stroke: var(--text-primary);
+}
+
+/* Optical nudge: play-arrow glyphs sit visually left-of-center inside square
+   containers because the triangle's mass is on the left edge. A 2px right
+   shift restores the perceived center. */
+[data-theme="dark"] .feature-icon .fa-play {
+  transform: translateX(2px);
+}
+
+/* ─── Gallery modal (admin) ───────────────────────────────────────────────── */
+/* The modal renders outside #admin-dashboard via position:fixed, so it carries
+   its own `data-theme="dark"` attribute on the root element. */
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-inner {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-hard, 0 24px 64px rgba(0, 0, 0, 0.6));
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-header h2 {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-count {
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-close {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-close:hover {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-item {
+  background: var(--bg-glass);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"].gallery-modal-overlay .empty-gallery {
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-default);
+  color: var(--text-muted);
+}
+
+/* Tab nav inside the gallery modal — reuse the dark capture-tab styling. */
+[data-theme="dark"].gallery-modal-overlay .capture-tabs-nav {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn:hover {
+  background: var(--bg-glass-strong);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn.active {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn.active svg {
   stroke: var(--text-primary);
 }
 
