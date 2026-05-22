@@ -32,17 +32,17 @@
   --color-graphite-900: #131311;
   --color-graphite-950: #0b0b0f;
 
-  /* Magenta — warm accent (existing brand pink, extended) */
-  --color-magenta-50: #fdf2f8;
-  --color-magenta-100: #fce7f3;
-  --color-magenta-200: #fbcfe8;
-  --color-magenta-300: #f9a8d4;
-  --color-magenta-400: #f472b6;
-  --color-magenta-500: #ec4899;
-  --color-magenta-600: #db2777;
-  --color-magenta-700: #be185d; /* existing brand pink */
-  --color-magenta-800: #9d174d;
-  --color-magenta-900: #831843;
+  /* Accent — desaturated teal-blue (#297aa0 brand base, pivoted 2026-05-23). */
+  --color-accent-50: #ecf4f9;
+  --color-accent-100: #d6e9f1;
+  --color-accent-200: #aed5e7;
+  --color-accent-300: #82c0db;
+  --color-accent-400: #57acd0;
+  --color-accent-500: #3b9ac6;
+  --color-accent-600: #2f88b3;
+  --color-accent-700: #297aa0; /* brand base */
+  --color-accent-800: #21617f;
+  --color-accent-900: #154860;
 
   /* Blue — cool accent for admin/info */
   --color-blue-50: #eff6ff;
@@ -132,7 +132,7 @@
   --shadow-sm: 0 1px 2px rgba(15, 15, 17, 0.06), 0 1px 1px rgba(15, 15, 17, 0.04);
   --shadow-md: 0 4px 12px rgba(15, 15, 17, 0.08), 0 2px 4px rgba(15, 15, 17, 0.05);
   --shadow-lg: 0 12px 32px rgba(15, 15, 17, 0.12), 0 4px 12px rgba(15, 15, 17, 0.06);
-  --shadow-glow-accent: 0 0 0 1px rgba(190, 24, 93, 0.25), 0 8px 24px rgba(190, 24, 93, 0.32);
+  --shadow-glow-accent: 0 0 0 1px rgba(41, 122, 160, 0.25), 0 8px 24px rgba(41, 122, 160, 0.32);
 
   /* ─── Motion ─── */
   --duration-ui: 150ms;

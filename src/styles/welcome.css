@@ -139,7 +139,7 @@
     box-shadow: var(--shadow-glow-accent);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(190, 24, 93, 0.4), 0 12px 36px rgba(190, 24, 93, 0.42);
+    box-shadow: 0 0 0 1px rgba(41, 122, 160, 0.4), 0 12px 36px rgba(41, 122, 160, 0.42);
   }
 }
 [data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session {

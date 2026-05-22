@@ -1911,7 +1911,7 @@ $(document).ready(function() {
                 + '<div style="display:flex;gap:1rem;margin-top:1.25rem;">'
                 + '<button id="btn-vg-short-keep" style="padding:0.8rem 1.5rem;background:#374151;color:#fff;'
                 + 'border:none;border-radius:999px;font-size:1rem;font-weight:700;cursor:pointer;">Keep Recording</button>'
-                + '<button id="btn-vg-short-stop" style="padding:0.8rem 1.5rem;background:#be185d;color:#fff;'
+                + '<button id="btn-vg-short-stop" style="padding:0.8rem 1.5rem;background:#297aa0;color:#fff;'
                 + 'border:none;border-radius:999px;font-size:1rem;font-weight:700;cursor:pointer;">Stop Anyway</button>'
                 + '</div>';
             ol.style.display = 'flex';

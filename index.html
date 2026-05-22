@@ -26,7 +26,7 @@
     <!-- ========================================== -->
     <!-- 1. ADMIN DASHBOARD                         -->
     <!-- ========================================== -->
-    <div id="admin-dashboard" class="dashboard-layout">
+    <div id="admin-dashboard" class="dashboard-layout" data-theme="dark">
         
         <aside class="sidebar">
             <div class="sidebar-header">
@@ -53,6 +53,7 @@
                 <a href="#" class="nav-item" id="nav-vg-thankyou" data-target="panel-vg-thankyou"><span class="icon"><i class="fa-solid fa-champagne-glasses"></i></span> Thank You Screen</a>
                 <a href="#" class="nav-item" id="nav-vg-prompts" data-target="panel-vg-prompts"><span class="icon"><i class="fa-regular fa-comment-dots"></i></span> Pre-Recording Prompts</a>
                 <a href="#" class="nav-item" id="nav-disclaimer" data-target="panel-disclaimer"><span class="icon"><i class="fa-solid fa-file-lines"></i></span> Disclaimer</a>
+                <a href="#" class="nav-item" id="nav-security" data-target="panel-security"><span class="icon"><i class="fa-solid fa-shield-halved"></i></span> Security</a>
                 <a href="#" class="nav-item" id="nav-live-viewer" data-target="panel-live-viewer"><span class="icon"><i class="fa-solid fa-video"></i></span> Live Gallery Viewer</a>
             </nav>
             
@@ -71,57 +72,27 @@
                 </div>
 
                 <!-- Event Name -->
-                <div class="settings-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
-                    <div style="display:flex; align-items:flex-start; gap:1rem;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:0.2rem;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        <div style="flex:1; min-width:0;">
-                            <label style="display:block; font-weight:600; font-size:0.88rem; color:#374151; margin-bottom:0.35rem;">
-                                Event Name <span style="color:#be185d; font-weight:700;" title="Required when Google Drive is enabled">*</span>
-                            </label>
-                            <input type="text" id="event-name-input" class="text-input" placeholder="e.g. Smiths_Wedding" style="width:100%; max-width:420px;">
-                            <p style="margin:0.3rem 0 0; font-size:0.78rem; color:#9ca3af;">
-                                Used as the filename prefix and as the <strong>Google Drive sub-folder name</strong> for this event.
-                            </p>
-                            <div id="event-name-drive-warning" style="display:none; margin-top:0.5rem; padding:0.5rem 0.75rem; background:#fef2f2; border:1px solid #fecaca; border-radius:6px; font-size:0.82rem; color:#dc2626; font-weight:500;">
-                                <i class="fa-solid fa-triangle-exclamation"></i> Enter an Event Name — it is required to organise files into sub-folders on Google Drive.
-                            </div>
+                <div class="settings-card admin-form-card">
+                    <div class="admin-form-card-head">
+                        <div class="admin-form-card-icon">
+                            <i class="fa-solid fa-location-dot"></i>
                         </div>
-                        <div style="font-size:0.78rem; color:#9ca3af; white-space:nowrap; flex-shrink:0; padding-top:1.5rem;">
-                            Saved as: <code id="filename-preview">photobooth_YYYYMMDD_HHMMSS.png</code>
+                        <div>
+                            <div class="admin-form-card-title">
+                                Event Name <span class="admin-form-card-required" title="Required when Google Drive is enabled">*</span>
+                            </div>
+                            <div class="admin-form-card-subtitle">
+                                Used as the filename prefix and the Google Drive sub-folder name for this event.
+                            </div>
                         </div>
                     </div>
-                </div>
-                <!-- Kiosk PIN -->
-                <div class="settings-card" style="padding:1.25rem 1.5rem; margin-bottom:1.5rem;">
-                    <div style="display:flex; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:0.2rem;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                        <div style="flex:1; min-width:0;">
-                            <label style="display:block; font-weight:600; font-size:0.88rem; color:#374151; margin-bottom:0.35rem;">Exit PIN <span style="font-weight:400; color:#9ca3af;">(optional)</span></label>
-                            <p id="kiosk-pin-status" style="margin:0 0 0.5rem; font-size:0.78rem; color:#6b7280; font-weight:500;"></p>
-
-                            <!-- Current PIN (shown only when a PIN is already set) -->
-                            <div id="kiosk-pin-current-row" style="display:none; margin-bottom:0.5rem;">
-                                <label for="kiosk-pin-current" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;">Current PIN</label>
-                                <input type="password" id="kiosk-pin-current" class="text-input" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Enter the current PIN" style="width:100%; max-width:280px;">
-                            </div>
-
-                            <!-- New PIN -->
-                            <div style="margin-bottom:0.5rem;">
-                                <label for="kiosk-pin-new" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;"><span id="kiosk-pin-new-label">New PIN</span> <span style="color:#9ca3af; font-weight:400;">(4–8 digits, or empty to remove)</span></label>
-                                <input type="password" id="kiosk-pin-new" class="text-input" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="4–8 digits" style="width:100%; max-width:280px;">
-                            </div>
-
-                            <!-- Confirm new PIN -->
-                            <div style="margin-bottom:0.5rem;">
-                                <label for="kiosk-pin-confirm" style="display:block; font-size:0.78rem; color:#6b7280; margin-bottom:0.2rem;">Confirm new PIN</label>
-                                <input type="password" id="kiosk-pin-confirm" class="text-input" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="Re-enter the new PIN" style="width:100%; max-width:280px;">
-                            </div>
-
-                            <div style="display:flex; align-items:center; gap:0.75rem; margin-top:0.5rem;">
-                                <button id="btn-kiosk-pin-apply" class="btn-outline" type="button" style="font-size:0.85rem;">Set PIN</button>
-                                <span id="kiosk-pin-feedback" style="font-size:0.8rem; font-weight:500;"></span>
-                            </div>
-                            <p style="margin:0.6rem 0 0; font-size:0.78rem; color:#9ca3af;">When set, this PIN is required to exit Kiosk Mode — prevents guests from accessing settings. Hashed with PBKDF2-SHA-256.</p>
+                    <div class="admin-form-card-body">
+                        <input type="text" id="event-name-input" class="text-input admin-form-input-wide" placeholder="e.g. Smiths_Wedding">
+                        <p class="admin-form-meta">
+                            Saved as <code id="filename-preview">photobooth_YYYYMMDD_HHMMSS.png</code>
+                        </p>
+                        <div id="event-name-drive-warning" class="admin-form-warning" style="display:none;">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Enter an Event Name — it is required to organise files into sub-folders on Google Drive.
                         </div>
                     </div>
                 </div>
@@ -1119,6 +1090,54 @@
 
             </div>
 
+            <!-- PANEL: SECURITY -->
+            <div id="panel-security" class="admin-panel" style="display:none;">
+                <div class="content-header">
+                    <h1><i class="fa-solid fa-shield-halved"></i> Security</h1>
+                    <p class="content-header-sub">Access controls for Kiosk Mode.</p>
+                </div>
+
+                <div class="settings-section">
+                    <div class="settings-card admin-form-card">
+                        <div class="admin-form-card-head">
+                            <div class="admin-form-card-icon">
+                                <i class="fa-solid fa-key"></i>
+                            </div>
+                            <div>
+                                <div class="admin-form-card-title">Exit PIN <span class="admin-form-card-optional">(optional)</span></div>
+                                <div class="admin-form-card-subtitle">Required to exit Kiosk Mode. Prevents guests from accessing settings. Hashed with PBKDF2-SHA-256.</div>
+                            </div>
+                        </div>
+                        <div class="admin-form-card-body">
+                            <p id="kiosk-pin-status" class="kiosk-pin-status"></p>
+
+                            <!-- Current PIN (shown only when a PIN is already set) -->
+                            <div id="kiosk-pin-current-row" class="admin-form-field" style="display:none;">
+                                <label for="kiosk-pin-current">Current PIN</label>
+                                <input type="password" id="kiosk-pin-current" class="text-input admin-form-input-narrow" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="Enter the current PIN">
+                            </div>
+
+                            <!-- New PIN -->
+                            <div class="admin-form-field">
+                                <label for="kiosk-pin-new"><span id="kiosk-pin-new-label">New PIN</span> <span class="admin-form-field-hint">(4–8 digits, or empty to remove)</span></label>
+                                <input type="password" id="kiosk-pin-new" class="text-input admin-form-input-narrow" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="4–8 digits">
+                            </div>
+
+                            <!-- Confirm new PIN -->
+                            <div class="admin-form-field">
+                                <label for="kiosk-pin-confirm">Confirm new PIN</label>
+                                <input type="password" id="kiosk-pin-confirm" class="text-input admin-form-input-narrow" inputmode="numeric" maxlength="8" autocomplete="new-password" placeholder="Re-enter the new PIN">
+                            </div>
+
+                            <div class="admin-form-actions">
+                                <button id="btn-kiosk-pin-apply" class="btn-outline" type="button">Set PIN</button>
+                                <span id="kiosk-pin-feedback" class="kiosk-pin-feedback"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -1382,7 +1401,7 @@
                     <button id="btn-vg-mute" title="Mute / Unmute"><i class="fa-solid fa-volume-high"></i></button>
                 </div>
             </div>
-            <button id="btn-vg-preview-close" style="margin-top:1.25rem; padding:0.9rem 2.75rem; background:#be185d; color:#fff; border:none; border-radius:999px; font-size:1.1rem; font-weight:700; cursor:pointer; letter-spacing:0.03em; box-shadow:0 4px 18px rgba(190,24,93,0.45);">
+            <button id="btn-vg-preview-close" style="margin-top:1.25rem; padding:0.9rem 2.75rem; background:#297aa0; color:#fff; border:none; border-radius:999px; font-size:1.1rem; font-weight:700; cursor:pointer; letter-spacing:0.03em; box-shadow:0 4px 18px rgba(41,122,160,0.45);">
                 <i class="fa-solid fa-check"></i> Close Preview
             </button>
         </div>
@@ -1429,7 +1448,7 @@
             <div style="font-size:1rem; color:#9ca3af; max-width:320px; line-height:1.5;">The camera was disconnected. Check the USB cable and tap <strong style="color:#fff;">Reconnect</strong>.</div>
             <p id="camera-lost-status" style="font-size:0.9rem; color:#fca5a5; min-height:1.2em; margin:0;"></p>
             <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:center; margin-top:0.5rem;">
-                <button id="btn-camera-lost-reconnect" style="padding:0.9rem 2.25rem; background:#be185d; color:#fff; border:none; border-radius:999px; font-size:1.05rem; font-weight:700; cursor:pointer;">
+                <button id="btn-camera-lost-reconnect" style="padding:0.9rem 2.25rem; background:#297aa0; color:#fff; border:none; border-radius:999px; font-size:1.05rem; font-weight:700; cursor:pointer;">
                     <i class="fa-solid fa-rotate-right"></i> Reconnect
                 </button>
                 <button id="btn-camera-lost-exit" style="padding:0.9rem 2.25rem; background:#374151; color:#fff; border:none; border-radius:999px; font-size:1.05rem; font-weight:700; cursor:pointer;">

@@ -407,8 +407,8 @@ input[type="color"] { border: none; width: 40px; height: 40px; border-radius: 4p
 .circle-action-btn { width: 160px; height: 160px; border-radius: 50%; background: rgba(255,255,255,0.25); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 2px solid rgba(255,255,255,0.5); box-shadow: 0 10px 25px rgba(0,0,0,0.15); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, background 0.2s; color: #fff; text-shadow: 0 1px 3px rgba(0,0,0,0.4); }
 .circle-action-btn:hover { transform: scale(1.05); box-shadow: 0 15px 35px rgba(0,0,0,0.2); background: rgba(255,255,255,0.35); }
 /* Video Guestbook start button accent */
-.vg-action-btn { background: rgba(190, 24, 93, 0.25); border-color: rgba(255,255,255,0.6); }
-.vg-action-btn:hover { background: rgba(190, 24, 93, 0.45); }
+.vg-action-btn { background: rgba(41, 122, 160, 0.25); border-color: rgba(255,255,255,0.6); }
+.vg-action-btn:hover { background: rgba(41, 122, 160, 0.45); }
 .hidden-exit-btn { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.1); border: none; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; opacity: 0.3; transition: opacity 0.2s; z-index: 10; color: #fff; }
 .hidden-exit-btn:hover { opacity: 1; background: rgba(0,0,0,0.5); color: white;}
 
