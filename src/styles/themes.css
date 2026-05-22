@@ -26,6 +26,15 @@
   --bg-glass: rgba(255, 255, 255, 0.06); /* glass card fill */
   --bg-glass-strong: rgba(255, 255, 255, 0.12); /* glass card hover */
 
+  /* Depth & Shadows */
+  --shadow-soft: 0 12px 40px rgba(0, 0, 0, 0.4);
+  --shadow-hard: 0 20px 60px rgba(0, 0, 0, 0.7);
+  --glass-blur: blur(12px);
+
+  /* Sizing */
+  --kiosk-radius: 24px;
+  --touch-target-min: 64px;
+
   /* Borders */
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-default: rgba(255, 255, 255, 0.16);
@@ -64,6 +73,15 @@
 
   /* Focus ring (high-contrast on dark) */
   --focus-ring: 0 0 0 3px rgba(244, 114, 182, 0.55);
+}
+
+/* Layout Primitives */
+.kiosk-card {
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--kiosk-radius);
+  box-shadow: var(--shadow-soft);
 }
 
 /* ─── LIGHT ADMIN ─────────────────────────────────────────────────────────── */
