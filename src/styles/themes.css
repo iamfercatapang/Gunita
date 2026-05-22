@@ -47,11 +47,11 @@
   --text-disabled: var(--color-graphite-600);
 
   /* Brand accent — magenta */
-  --accent: var(--color-magenta-700); /* primary CTA */
-  --accent-hover: var(--color-magenta-600);
+  --accent: var(--color-accent-700); /* primary CTA */
+  --accent-hover: var(--color-accent-600);
   --accent-text: #ffffff;
-  --accent-soft-bg: rgba(190, 24, 93, 0.16);
-  --accent-soft-text: var(--color-magenta-300);
+  --accent-soft-bg: rgba(41, 122, 160, 0.18);
+  --accent-soft-text: var(--color-accent-300);
 
   /* Info accent — blue */
   --info: var(--color-blue-400);
@@ -72,7 +72,7 @@
   --danger-soft-text: #fca5a5;
 
   /* Focus ring (high-contrast on dark) */
-  --focus-ring: 0 0 0 3px rgba(244, 114, 182, 0.55);
+  --focus-ring: 0 0 0 3px rgba(87, 172, 208, 0.55);
 }
 
 /* Layout Primitives */
@@ -107,11 +107,11 @@
   --text-disabled: var(--color-graphite-300);
 
   /* Brand accent — magenta */
-  --accent: var(--color-magenta-700);
-  --accent-hover: var(--color-magenta-800);
+  --accent: var(--color-accent-700);
+  --accent-hover: var(--color-accent-800);
   --accent-text: #ffffff;
-  --accent-soft-bg: var(--color-magenta-50);
-  --accent-soft-text: var(--color-magenta-800);
+  --accent-soft-bg: var(--color-accent-50);
+  --accent-soft-text: var(--color-accent-800);
 
   /* Info accent — blue (admin's primary interactive color) */
   --info: var(--color-blue-700);

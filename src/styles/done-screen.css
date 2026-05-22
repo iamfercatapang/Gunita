@@ -101,7 +101,7 @@
   left: 12%;
   right: 12%;
   height: 1px;
-  background: linear-gradient(90deg, transparent 0%, var(--color-magenta-400) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--color-accent-400) 50%, transparent 100%);
   pointer-events: none;
 }
 
@@ -118,8 +118,8 @@
   width: 10px;
   height: 10px;
   border-radius: var(--radius-full);
-  background: var(--color-magenta-500);
-  box-shadow: 0 0 12px rgba(236, 72, 153, 0.7);
+  background: var(--color-accent-500);
+  box-shadow: 0 0 12px rgba(59, 154, 198, 0.7);
   flex-shrink: 0;
   /* Gentle pulse to draw the eye without being noisy. */
   animation: vgDoneBadgePulse 2.2s ease-in-out infinite;
@@ -129,11 +129,11 @@
   0%,
   100% {
     transform: scale(1);
-    box-shadow: 0 0 12px rgba(236, 72, 153, 0.7);
+    box-shadow: 0 0 12px rgba(59, 154, 198, 0.7);
   }
   50% {
     transform: scale(1.18);
-    box-shadow: 0 0 18px rgba(236, 72, 153, 0.95);
+    box-shadow: 0 0 18px rgba(59, 154, 198, 0.95);
   }
 }
 
@@ -149,7 +149,7 @@
   font-weight: var(--weight-bold);
   letter-spacing: var(--tracking-wider);
   text-transform: uppercase;
-  color: var(--color-magenta-300);
+  color: var(--color-accent-300);
   margin: 0;
 }
 
@@ -187,7 +187,7 @@
   width: 64px;
   height: 64px;
   border: 5px solid var(--color-graphite-200);
-  border-top-color: var(--color-magenta-700);
+  border-top-color: var(--color-accent-700);
   border-radius: 50%;
   animation: vgDoneQrSpin 0.9s linear infinite;
 }
