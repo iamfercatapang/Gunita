@@ -34,6 +34,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 import './styles/tokens.css';
 import './styles/themes.css';
 import './styles/welcome.css';
+import './styles/pb-offer.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';

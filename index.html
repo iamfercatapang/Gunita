@@ -1401,18 +1401,36 @@
             <button id="btn-vg-ty-done" class="ty-done-btn">Done</button>
         </div>
 
-        <!-- ========== VG → PB OFFER OVERLAY ========== -->
-        <div id="vg-pb-offer" style="display:none; position:absolute; inset:0; z-index:65; background:rgba(0,0,0,0.93); flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1rem; padding:2rem;">
-            <i class="fa-solid fa-camera" style="font-size:3.5rem; color:#fff; opacity:0.8;"></i>
-            <div class="vg-pbo-title">Want to take a photo too?</div>
-            <div class="vg-pbo-subtitle">Strike a pose for a quick photo strip!</div>
-            <div class="vg-pbo-buttons">
-                <button id="btn-vg-pbo-yes" class="vg-pbo-btn vg-pbo-btn-yes">
-                    <i class="fa-solid fa-camera"></i> Sure!
-                </button>
-                <button id="btn-vg-pbo-no" class="vg-pbo-btn vg-pbo-btn-no">
-                    No thanks <span id="vg-pbo-countdown"></span>
-                </button>
+        <!-- ========== VG → PB OFFER OVERLAY ==========
+             Restyled cross-sell moment. Backdrop is a frozen frame of the
+             guest's just-recorded video (drawn to canvas at show-time), with
+             vignette overlay. Headline in Fraunces; magenta hero pill primary;
+             outline "No thanks" pill with a thin draining ring as countdown. -->
+        <div id="vg-pb-offer" style="display:none;">
+            <canvas id="vg-pbo-bg-canvas" class="vg-pbo-bg-canvas"></canvas>
+            <div class="vg-pbo-vignette"></div>
+            <div class="vg-pbo-content">
+                <h2 class="vg-pbo-title">
+                    Loved that?<br>
+                    <span class="vg-pbo-title-em">Take a photo too.</span>
+                </h2>
+                <p class="vg-pbo-subtitle">Strike a quick pose &mdash; takes about 10 seconds.</p>
+                <div class="vg-pbo-buttons">
+                    <button id="btn-vg-pbo-yes" class="vg-pbo-btn vg-pbo-btn-yes">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span>Sure, let's go</span>
+                    </button>
+                    <button id="btn-vg-pbo-no" class="vg-pbo-btn vg-pbo-btn-no">
+                        <span>No thanks</span>
+                        <span class="vg-pbo-no-timer">
+                            <svg class="vg-pbo-ring" viewBox="0 0 36 36" aria-hidden="true">
+                                <circle class="vg-pbo-ring-track" cx="18" cy="18" r="16" fill="none"></circle>
+                                <circle class="vg-pbo-ring-progress" id="vg-pbo-ring-progress" cx="18" cy="18" r="16" fill="none" pathLength="100"></circle>
+                            </svg>
+                            <span class="vg-pbo-secs" id="vg-pbo-secs">15</span>
+                        </span>
+                    </button>
+                </div>
             </div>
         </div>
 
