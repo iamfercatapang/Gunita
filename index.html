@@ -738,11 +738,15 @@
                             </div>
                         </div>
 
-                        <div class="tool-group">
+                        <!-- Legacy Title / Subtitle text fields — fed appConfig.welcomeTitle and
+                             appConfig.welcomeSubtitle, both inert now (kiosk renders the VG Panel
+                             Title + computed subtitle instead). Hidden to avoid admin confusion;
+                             see the Video Guestbook Panel section below for the active controls. -->
+                        <div class="tool-group" style="display:none;">
                             <label>Title Text</label>
                             <input type="text" id="edit-title" class="text-input" placeholder="Welcome to the Party!">
                         </div>
-                        <div class="tool-group">
+                        <div class="tool-group" style="display:none;">
                             <label>Subtitle Text</label>
                             <input type="text" id="edit-subtitle" class="text-input" placeholder="Tap the camera to begin">
                         </div>
@@ -766,18 +770,19 @@
                     </div>
 
                     <div class="designer-preview-container">
-                        <div class="preview-frame" id="designer-preview">
+                        <!-- Mirrors the kiosk VG-first welcome layout, scaled to the admin preview frame. -->
+                        <div class="preview-frame welcome-preview-frame" id="designer-preview" data-theme="dark">
                             <img id="prev-media-img" class="ws-media-bg" style="display:none;" alt="">
                             <video id="prev-media-video" class="ws-media-bg" autoplay loop muted playsinline style="display:none;"></video>
-                            <div class="welcome-content">
-                                <h2 id="prev-title"></h2>
-                                <p id="prev-subtitle"></p>
-                            </div>
-                            <div class="welcome-action">
-                                <div class="prev-start-btn">
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                                    <span>Photo</span>
+                            <div class="welcome-preview-scrim"></div>
+                            <div class="welcome-preview-content">
+                                <h2 id="prev-vg-title" class="welcome-preview-title"></h2>
+                                <p id="prev-vg-subtitle" class="welcome-preview-subtitle"></p>
+                                <div class="welcome-preview-cta">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                                    <span>Leave a Message</span>
                                 </div>
+                                <span class="welcome-preview-prompts" id="prev-vg-prompts-chip" style="display:none;">What questions will be asked? &rarr;</span>
                             </div>
                         </div>
                     </div>
@@ -1162,7 +1167,7 @@
     </div>
 
     <!-- ========== KIOSK MODE ========== -->
-    <div id="kiosk-mode" style="display:none;">
+    <div id="kiosk-mode" data-theme="dark" style="display:none;">
         <div id="guest-welcome" class="welcome-overlay">
             <img id="ws-image-bg" class="ws-media-bg" style="display:none;" alt="">
             <video id="ws-video-bg" class="ws-media-bg" autoplay loop muted playsinline style="display:none;"></video>
@@ -1170,28 +1175,32 @@
             <div class="ws-scrim"></div>
             <button id="btn-exit-kiosk" class="hidden-exit-btn">Exit Kiosk</button>
 
-            <!-- Photo mode: centered layout -->
-            <div class="welcome-content" id="welcome-photo-content">
+            <!-- Photo-only mode: kept for legacy PB-only kiosk configs.
+                 Currently inert since captureMode is forced to 'videoguestbook'
+                 in src/state/app-state.ts. -->
+            <div class="welcome-content" id="welcome-photo-content" style="display:none;">
                 <h1 id="live-ws-title">Welcome to the Party!</h1>
                 <p id="live-ws-subtitle"></p>
             </div>
-            <div class="welcome-action" id="welcome-photo-action">
+            <div class="welcome-action" id="welcome-photo-action" style="display:none;">
                 <button id="btn-start-session" class="circle-action-btn" style="display:none;">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                     <span>Photo</span>
                 </button>
             </div>
 
-            <!-- VG mode: right side panel -->
-            <div class="welcome-vg-panel" id="welcome-vg-panel" style="display:none;">
-                <div class="vg-panel-accent-bar"></div>
-                <div class="vg-panel-inner">
-                    <img src="Assets/gunita%20logo.png" alt="Gunita" class="brand-logo">
-                    <h1 class="vg-panel-title" id="live-ws-title-vg"></h1>
+            <!-- VG-first welcome (the canonical guest entry). Centered editorial
+                 layout with Fraunces event name, hero VG CTA, optional PB chip. -->
+            <div class="welcome-vg-panel welcome-vg-hero" id="welcome-vg-panel" style="display:none;">
+                <div class="welcome-hero-block">
+                    <h2 class="vg-panel-title" id="live-ws-title-vg"></h2>
                     <p class="vg-panel-subtitle" id="live-ws-subtitle-vg"></p>
-                    <button id="btn-start-vg-session" class="vg-ok-btn">Leave a message</button>
+                    <button id="btn-start-vg-session" class="vg-ok-btn">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+                        <span>Leave a Message</span>
+                    </button>
                     <button id="btn-show-prompts-preview" class="prompts-preview-link" style="display:none;">
-                        What Q's will be asked?
+                        What questions will be asked? &rarr;
                     </button>
                 </div>
             </div>
