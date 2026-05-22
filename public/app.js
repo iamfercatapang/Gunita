@@ -2071,18 +2071,35 @@ $(document).ready(function() {
     function showVgPbOffer() {
         return new Promise(function(resolve) {
             const overlay     = document.getElementById('vg-pb-offer');
-            const countdownEl = document.getElementById('vg-pbo-countdown');
             const yesBtn      = document.getElementById('btn-vg-pbo-yes');
             const noBtn       = document.getElementById('btn-vg-pbo-no');
+            const ring        = document.getElementById('vg-pbo-ring-progress');
+            const secsEl      = document.getElementById('vg-pbo-secs');
             const SECS        = 15;
             let remaining     = SECS;
 
-            countdownEl.textContent = '(' + remaining + ')';
+            // Frozen-frame backdrop: draw the last live frame from the VG video
+            // element into a canvas so the offer has the guest's own moment
+            // (blurred + vignetted) behind it instead of flat black.
+            _paintVgPbOfferBackdrop();
+
+            // Reset ring + label to initial state.
+            if (ring) {
+                ring.style.transition = 'none';
+                ring.style.strokeDashoffset = '0';
+                // Force layout flush so the transition reset applies before we
+                // re-enable the transition for the drain animation.
+                void ring.getBoundingClientRect();
+                ring.style.transition = 'stroke-dashoffset 1s linear';
+            }
+            if (secsEl) secsEl.textContent = String(remaining);
             overlay.style.display = 'flex';
 
             const timer = setInterval(function() {
                 remaining--;
-                countdownEl.textContent = '(' + remaining + ')';
+                const drained = ((SECS - remaining) / SECS) * 100;
+                if (ring) ring.style.strokeDashoffset = String(drained);
+                if (secsEl) secsEl.textContent = String(Math.max(0, remaining));
                 if (remaining <= 0) finish(false);
             }, 1000);
 
@@ -2100,6 +2117,33 @@ $(document).ready(function() {
             yesBtn.addEventListener('click', onYes);
             noBtn.addEventListener('click', onNo);
         });
+    }
+
+    // Draw the current frame of the VG video element to the offer's backdrop
+    // canvas. Called at offer-show time, when the live stream is still active.
+    // Best-effort: if the video isn't ready, the canvas stays blank and the
+    // overlay falls back to its dark background.
+    function _paintVgPbOfferBackdrop() {
+        const canvas = document.getElementById('vg-pbo-bg-canvas');
+        const videoEl = document.getElementById('vg-camera-feed');
+        if (!canvas || !videoEl) return;
+        const vw = videoEl.videoWidth;
+        const vh = videoEl.videoHeight;
+        if (!vw || !vh) return;
+        canvas.width = vw;
+        canvas.height = vh;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        try {
+            // Mirror to match the viewfinder orientation guests saw.
+            ctx.save();
+            ctx.translate(vw, 0);
+            ctx.scale(-1, 1);
+            ctx.drawImage(videoEl, 0, 0, vw, vh);
+            ctx.restore();
+        } catch (e) {
+            console.warn('[PB-Offer] backdrop draw failed:', e && e.message);
+        }
     }
 
     function showDriveQrPrompt() {
