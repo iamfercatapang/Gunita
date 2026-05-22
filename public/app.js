@@ -74,8 +74,10 @@ $(document).ready(function() {
 
     $('#edit-vg-panel-title').on('input', function() {
         appConfig.vgPanelTitle = $(this).val();
+        const txt = appConfig.vgPanelTitle || 'Raise a Toast!';
+        $('#prev-vg-title').text(txt);
         if (appConfig.captureMode === 'videoguestbook') {
-            $('#live-ws-title-vg').text(appConfig.vgPanelTitle || 'Raise a Toast!');
+            $('#live-ws-title-vg').text(txt);
         }
     });
 
@@ -83,8 +85,10 @@ $(document).ready(function() {
         const name = $(this).val();
         appConfig.vgCoupleName = name;
         $('#vg-couple-name-preview').text(name || 'Alice & Dan');
+        const sub = _getVgPanelSubtitle();
+        $('#prev-vg-subtitle').text(sub);
         if (appConfig.captureMode === 'videoguestbook') {
-            $('#live-ws-subtitle-vg').text(_getVgPanelSubtitle());
+            $('#live-ws-subtitle-vg').text(sub);
         }
     });
 
@@ -299,6 +303,7 @@ $(document).ready(function() {
             $('#toggle-vg-prompts').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
             $('#toggle-vg-prompts-label').text(on ? 'ON' : 'OFF');
             $('#vg-prompts-config').toggle(on);
+            $('#prev-vg-prompts-chip').toggle(on);
         }
 
         _syncToggle();
@@ -317,6 +322,7 @@ $(document).ready(function() {
             $('#toggle-vg-prompts-label').text(this.checked ? 'ON' : 'OFF');
             $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
             $('#vg-prompts-config').toggle(this.checked);
+            $('#prev-vg-prompts-chip').toggle(this.checked);
         });
 
         $(document).on('click', '.prompt-cat-btn', function() {
@@ -2835,14 +2841,23 @@ $(document).ready(function() {
         // Welcome screen
         $('#edit-bg-color').val(appConfig.welcomeBg);
         $('#color-hex').text(appConfig.welcomeBg);
+        // Legacy welcomeTitle / welcomeSubtitle inputs are hidden in the UI but
+        // keep their values populated for safety in case future code reads them.
         $('#edit-title').val(appConfig.welcomeTitle);
         $('#edit-subtitle').val(appConfig.welcomeSubtitle);
-        $('#prev-title, #live-ws-title').text(appConfig.welcomeTitle);
-        $('#prev-subtitle, #live-ws-subtitle').text(appConfig.welcomeSubtitle);
-        $('#edit-vg-panel-title').val(appConfig.vgPanelTitle || 'Raise a Toast!');
+        $('#live-ws-title').text(appConfig.welcomeTitle);
+        $('#live-ws-subtitle').text(appConfig.welcomeSubtitle);
+        // Active welcome controls (VG-first design).
+        const vgTitle = appConfig.vgPanelTitle || 'Raise a Toast!';
+        const vgSubtitle = _getVgPanelSubtitle();
+        $('#edit-vg-panel-title').val(vgTitle);
         $('#edit-vg-couple-name').val(appConfig.vgCoupleName || '');
         $('#vg-couple-name-preview').text(appConfig.vgCoupleName || 'Alice & Dan');
-        $('#live-ws-title-vg').text(appConfig.vgPanelTitle || 'Raise a Toast!');
+        $('#live-ws-title-vg').text(vgTitle);
+        $('#live-ws-subtitle-vg').text(vgSubtitle);
+        $('#prev-vg-title').text(vgTitle);
+        $('#prev-vg-subtitle').text(vgSubtitle);
+        $('#prev-vg-prompts-chip').toggle(!!appConfig.vgPromptsEnabled);
         if (!appConfig.welcomeMedia) {
             $('#designer-preview, #guest-welcome').css('background-color', appConfig.welcomeBg);
         }

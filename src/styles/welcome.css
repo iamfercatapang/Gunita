@@ -1,0 +1,299 @@
+/* =============================================================================
+ * Welcome screen — VG-first centered layout
+ * =============================================================================
+ *
+ * Replaces the legacy right-side .welcome-vg-panel layout with a centered,
+ * editorial design that leads with Video Guestbook as the product. The
+ * PhotoBooth feature is surfaced only when `pbEnabled && pbShowOnWelcome`,
+ * as a quiet outline chip below the VG hero CTA.
+ *
+ * The container `#welcome-vg-panel` keeps its ID (for legacy closest()
+ * exclusion zones in app.js) but receives the new `.welcome-vg-hero` class
+ * which overrides every layout property of the legacy panel.
+ *
+ * Theme: scoped to [data-theme="dark"] #kiosk-mode (set in index.html).
+ * Tokens: tokens.css (primitives) + themes.css (dark semantic).
+ * ============================================================================= */
+
+/* ─── Container — fully overrides legacy `.welcome-vg-panel` ──────────────── */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent; /* media bg from #ws-image-bg/#ws-video-bg shows through */
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8) var(--space-6) var(--space-16);
+  box-shadow: none;
+  overflow: hidden;
+  text-align: center;
+}
+
+/* Soft bottom-up gradient for legibility over hero media. */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 11, 15, 0.35) 0%,
+    rgba(11, 11, 15, 0.55) 55%,
+    rgba(11, 11, 15, 0.85) 100%
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* All children stack above the gradient. */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ─── Hero block (headline + subhead + primary CTA) ───────────────────────── */
+.welcome-hero-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 720px;
+  width: 100%;
+}
+
+/* Repurposed: was the right-panel title. Now the welcome hero headline. */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero .vg-panel-title,
+#live-ws-title-vg {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: clamp(2rem, 5vw, var(--text-5xl));
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-4);
+  word-break: break-word;
+}
+
+/* Repurposed: was the right-panel subtitle. Now the welcome subhead. */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero .vg-panel-subtitle,
+#live-ws-subtitle-vg {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: clamp(0.95rem, 1.4vw, var(--text-md));
+  line-height: var(--leading-relaxed);
+  letter-spacing: var(--tracking-normal);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-10);
+  max-width: 480px;
+}
+
+/* ─── Primary CTA — magenta hero pill ─────────────────────────────────────── */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session {
+  /* Reset legacy round-button styles. */
+  width: auto;
+  height: var(--touch-hero);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-10);
+  background: var(--accent);
+  border: none;
+  color: var(--accent-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+  margin-bottom: var(--space-5);
+  box-shadow: var(--shadow-glow-accent);
+  transition: transform var(--duration-ui) var(--ease-out), box-shadow var(--duration-ui)
+    var(--ease-out), background var(--duration-ui) var(--ease-out);
+  flex-shrink: 0;
+  min-width: 280px;
+  justify-content: center;
+}
+
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session:hover {
+  background: var(--accent-hover);
+  transform: scale(1.03);
+}
+
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session:active {
+  transform: scale(0.97);
+}
+
+/* Optional inline icon (mic-lines, etc.) inside the hero button. */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session > svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+/* Subtle pulse — gentle, not flashing. Respects reduced-motion. */
+@keyframes welcomeHeroPulse {
+  0%,
+  100% {
+    box-shadow: var(--shadow-glow-accent);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(190, 24, 93, 0.4), 0 12px 36px rgba(190, 24, 93, 0.42);
+  }
+}
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session {
+  animation: welcomeHeroPulse 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-start-vg-session {
+    animation: none;
+  }
+}
+
+/* ─── Prompts preview chip ────────────────────────────────────────────────── */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-show-prompts-preview {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-normal);
+  text-decoration: none;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: background var(--duration-ui) var(--ease-out);
+  display: inline-block;
+  min-height: var(--touch-min);
+}
+
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #btn-show-prompts-preview:hover {
+  background: var(--bg-glass-strong);
+  color: var(--text-primary);
+}
+
+/* ─── Legacy panel decorations — hidden under the new layout ──────────────── */
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero .vg-panel-accent-bar,
+[data-theme="dark"] #welcome-vg-panel.welcome-vg-hero .brand-logo {
+  display: none;
+}
+
+/* ─── Compact viewport tuning ─────────────────────────────────────────────── */
+@media (max-height: 720px) {
+  [data-theme="dark"] #welcome-vg-panel.welcome-vg-hero {
+    padding: var(--space-6) var(--space-5) var(--space-12);
+  }
+  [data-theme="dark"] #welcome-vg-panel.welcome-vg-hero #live-ws-subtitle-vg {
+    margin-bottom: var(--space-6);
+  }
+}
+
+/* =============================================================================
+ * Admin live preview — Welcome Screen Designer
+ * =============================================================================
+ *
+ * Scaled-down replica of the kiosk welcome layout inside the admin designer's
+ * preview frame (#designer-preview). Visually faithful to the dark kiosk
+ * experience so admins see what guests will see, but sized for the ~400px-wide
+ * preview pane.
+ * ============================================================================= */
+
+/* Preview frame override — switch from light pastel to dark, with overflow
+ * clipping so the gradient + media background hugs the rounded corners. */
+[data-theme="dark"].preview-frame.welcome-preview-frame {
+  background: var(--color-graphite-950);
+  padding: 0;
+  justify-content: flex-end;
+  align-items: stretch;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Dark gradient scrim, identical intent to the kiosk hero gradient. */
+.welcome-preview-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(11, 11, 15, 0.4) 0%,
+    rgba(11, 11, 15, 0.6) 55%,
+    rgba(11, 11, 15, 0.88) 100%
+  );
+  z-index: 1;
+  pointer-events: none;
+}
+
+.welcome-preview-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+  width: 100%;
+}
+
+.welcome-preview-title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: 1.4rem;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  margin: 0 0 var(--space-2);
+  word-break: break-word;
+  max-width: 100%;
+}
+
+.welcome-preview-subtitle {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-regular);
+  font-size: 0.78rem;
+  line-height: var(--leading-relaxed);
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-5);
+  max-width: 90%;
+}
+
+.welcome-preview-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--font-sans);
+  font-size: 0.82rem;
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  box-shadow: var(--shadow-glow-accent);
+  margin-bottom: var(--space-3);
+  white-space: nowrap;
+  pointer-events: none; /* It's a preview — non-interactive. */
+}
+
+.welcome-preview-cta > svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.welcome-preview-prompts {
+  display: inline-block;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: var(--weight-medium);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  pointer-events: none;
+}

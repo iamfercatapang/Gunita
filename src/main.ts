@@ -33,6 +33,7 @@ import '@fortawesome/fontawesome-free/css/all.min.css';
 // Foundation only: nothing visually changes until components opt in.
 import './styles/tokens.css';
 import './styles/themes.css';
+import './styles/welcome.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';
