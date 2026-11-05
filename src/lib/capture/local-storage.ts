@@ -1,3 +1,5 @@
+import { saveToDevice, shouldUseDeviceStore } from './device-store';
+
 // Local file save with three layered strategies, in priority order:
 //
 //   1. File System Access API — the operator has picked a destination folder
@@ -5,9 +7,15 @@
 //      after the current session ID, then write the blob into it. This is the
 //      preferred path on Chromium-based browsers.
 //
-//   2. Anchor-download — fallback for browsers without FSA, or before the
-//      operator has chosen a folder. Triggers the browser's standard download
-//      flow; the user lands the file wherever their browser saves downloads.
+//   2. On-device store — iPad / iPhone, where Safari has no folder picker and
+//      downloads can prompt after every capture. The file goes into the app's
+//      own storage and is exported later from the admin panel
+//      (see device-store.ts).
+//
+//   3. Anchor-download — fallback for other browsers without FSA, or before
+//      the operator has chosen a folder. Triggers the browser's standard
+//      download flow; the user lands the file wherever their browser saves
+//      downloads.
 //
 // All paths return a Promise so callers can `await` the actual write before
 // surfacing success / failure UI.
@@ -40,17 +48,21 @@ export function makeFilename(eventName: string, ext = 'png'): string {
   return `${prefix}_${ts}.${ext}`;
 }
 
+/** Where a capture ended up. */
+export type LocalSaveTarget = 'folder' | 'device' | 'download';
+
 /**
- * Save a blob to disk. Prefers the FSA session-folder path when both a
- * directory handle and a session ID are present; otherwise falls back to
- * a browser download. Throws on FSA write errors so the caller can surface
- * an error toast — download failures are silent (the browser shows its own UI).
+ * Save a blob locally. Prefers the FSA session-folder path when a directory
+ * handle is present, then the on-device store on iPad / iPhone, then a
+ * browser download. Throws on FSA and device-store write errors (for example
+ * when storage is full) so the caller can surface an error. Download failures
+ * are silent (the browser shows its own UI).
  */
 export async function saveBlobLocally(
   blob: Blob,
   filename: string,
   deps: LocalSaveDeps,
-): Promise<void> {
+): Promise<LocalSaveTarget> {
   if (deps.directoryHandle) {
     const sessionDir = await deps.directoryHandle.getDirectoryHandle(deps.sessionId || 'session', {
       create: true,
@@ -59,9 +71,14 @@ export async function saveBlobLocally(
     const writable = await fileHandle.createWritable();
     await writable.write(blob);
     await writable.close();
-    return;
+    return 'folder';
+  }
+  if (shouldUseDeviceStore()) {
+    await saveToDevice(blob, filename, deps.sessionId);
+    return 'device';
   }
   downloadBlob(blob, filename);
+  return 'download';
 }
 
 /**

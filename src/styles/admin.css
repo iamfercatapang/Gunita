@@ -1198,3 +1198,60 @@
 #vg-audio-diag {
   display: none !important;
 }
+
+/* On-device saves (iPad / iPhone) — the Local Folder box when Safari has no
+   folder picker. Four counts in a row, then Export / Clear. */
+[data-theme="dark"] #device-store-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+[data-theme="dark"] .device-store-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+[data-theme="dark"] .device-store-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+}
+
+[data-theme="dark"] .device-store-stat strong {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .device-store-stat span {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] #device-store-box .admin-form-actions {
+  flex-wrap: wrap;
+}
+
+[data-theme="dark"] #btn-ds-export,
+[data-theme="dark"] #btn-ds-clear {
+  min-height: var(--touch-min);
+}
+
+[data-theme="dark"] #btn-ds-export:disabled,
+[data-theme="dark"] #btn-ds-clear:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  [data-theme="dark"] .device-store-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

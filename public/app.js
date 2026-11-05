@@ -714,6 +714,87 @@ $(document).ready(function() {
         }
     });
 
+    // ── On-device saves (iPad / iPhone) ──────────────────────────────────────
+    // Safari on iOS/iPadOS has no folder picker, so captures are kept in the
+    // app's own storage (window.PB.capture.deviceStore) and exported from the
+    // Local Folder box. Other browsers never show this box.
+    const _ds = window.PB.capture.deviceStore;
+    // The next export batch is loaded ahead of time: iOS only opens the share
+    // sheet when navigator.share() runs straight from the tap.
+    let _dsBatch = { ids: [], files: [] };
+
+    function _fmtBytes(n) {
+        if (n == null) return '–';
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
+        if (n >= 1e6) return Math.round(n / 1e6) + ' MB';
+        return Math.max(1, Math.round(n / 1e3)) + ' KB';
+    }
+
+    async function refreshDeviceStore() {
+        if (!_ds.shouldUseDeviceStore()) return;
+        try {
+            const s = await _ds.summary();
+            _dsBatch = await _ds.nextExportBatch();
+            $('#ds-pending').text(s.pending);
+            $('#ds-exported').text(s.exported);
+            $('#ds-used').text(_fmtBytes(s.bytes));
+            $('#ds-free').text(_fmtBytes(s.freeBytes));
+            const n = _dsBatch.files.length;
+            $('#btn-ds-export')
+                .prop('disabled', n === 0)
+                .text(n === 0 ? 'Nothing to export'
+                    : s.pending > n ? `Export next ${n} of ${s.pending}`
+                    : `Export ${n} file${n === 1 ? '' : 's'}`);
+            $('#btn-ds-clear')
+                .prop('disabled', s.exported === 0)
+                .text(s.exported ? `Clear ${s.exported} exported` : 'Clear exported');
+            $('#ds-persist-note')
+                .toggle(s.persisted === false)
+                .text('Add Gunita to the Home Screen (Share → Add to Home Screen) and run it from there, so iPadOS keeps these files until you export them.');
+        } catch (err) {
+            console.warn('[DeviceStore] Could not read saved captures:', err);
+        }
+    }
+
+    if (_ds.shouldUseDeviceStore()) {
+        $('#local-folder-picker').hide();
+        $('#device-store-box').show();
+        $('#lbl-vg-save-local .save-dest-title').text('On this device');
+        refreshDeviceStore();
+        // Captures happen in kiosk mode; refresh whenever the admin comes back.
+        $(document).on('click', '.nav-item', refreshDeviceStore);
+    }
+
+    $('#btn-ds-export').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true);
+        // No await before exportBatch(): it calls navigator.share() first thing.
+        _ds.exportBatch(_dsBatch).then(function(r) {
+            if (r.status === 'shared' || r.status === 'downloaded') {
+                const verb = r.status === 'shared' ? 'Exported' : 'Downloaded';
+                $('#ds-message').text(`${verb} ${r.count} file${r.count === 1 ? '' : 's'}.` +
+                    (r.remaining ? ` ${r.remaining} still to export: tap Export again.` : ' Everything is exported.'));
+            } else if (r.status === 'cancelled') {
+                $('#ds-message').text('Export cancelled. Nothing was marked as exported.');
+            }
+        }).catch(function(err) {
+            console.error('[DeviceStore] Export failed:', err);
+            $('#ds-message').text('Export failed: ' + (err.message || err.name) + '. Your files are still saved on this device.');
+        }).finally(refreshDeviceStore);
+    });
+
+    $('#btn-ds-clear').on('click', async function() {
+        const count = $('#ds-exported').text();
+        if (!confirm(`Delete ${count} exported file(s) from this device? Make sure they arrived in Files or Photos first. Files you haven't exported are kept.`)) return;
+        try {
+            const removed = await _ds.clearExported();
+            $('#ds-message').text(`Cleared ${removed} exported file${removed === 1 ? '' : 's'}.`);
+        } catch (err) {
+            $('#ds-message').text('Could not clear files: ' + (err.message || err.name));
+        }
+        refreshDeviceStore();
+    });
+
     // Populate VG camera and audio device lists on load
     window.PB.devices.populateCameraList('vg');
     window.PB.devices.populateAudioDeviceList();

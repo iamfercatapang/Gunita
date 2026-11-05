@@ -48,6 +48,7 @@ import { AudioController } from './lib/audio';
 import {
   VgCameraManager,
   computeLayout,
+  deviceStore,
   downloadBlob,
   drawCoverFrame,
   drawPhoto,
@@ -224,6 +225,7 @@ window.PB.capture = {
   makeFilename,
   saveBlobLocally,
   downloadBlob,
+  deviceStore,
 };
 
 // Viewer mode auto-boots when the URL has `?viewer=<id>`; no-op otherwise.
