@@ -40,6 +40,7 @@ import './styles/admin.css';
 import './styles/pb-capture.css';
 import './styles/vg-recording.css';
 import './styles/live-viewer.css';
+import './styles/responsive.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';
