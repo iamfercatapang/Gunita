@@ -37,6 +37,7 @@ import './styles/welcome.css';
 import './styles/pb-offer.css';
 import './styles/done-screen.css';
 import './styles/admin.css';
+import './styles/pb-capture.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';

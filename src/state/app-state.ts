@@ -259,6 +259,7 @@ export function startNewSession(): string {
 // these window assignments can be removed.
 window.appConfig = appConfig;
 window.saveConfig = saveConfig;
+window._scheduleSave = _scheduleSave;
 window.generateSessionId = generateSessionId;
 window.startNewSession = startNewSession;
 
