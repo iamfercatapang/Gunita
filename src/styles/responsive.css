@@ -1,0 +1,292 @@
+/* =============================================================================
+ * Responsive layer: phones, short landscape screens, rotation
+ * =============================================================================
+ *
+ * Imported last from src/main.ts so these rules follow every screen's own
+ * styles. Two kinds of screen get special treatment:
+ *   - narrow:  portrait phones (max-width: 600px)
+ *   - short:   landscape phones (max-height: 560px), e.g. a Galaxy S22 Ultra
+ *              at 915×412 or a small phone at 740×360
+ * Tablets and desktops (iPad 1024×768 and up) are unaffected, apart from the
+ * admin sidebar, which now scrolls on its own.
+ * ============================================================================= */
+
+/* ─── Kiosk fills the screen ──────────────────────────────────────────────── */
+/* #kiosk-mode had no height, so the photo booth container collapsed to the
+   viewfinder's height and the page background showed below it on a tall
+   phone. */
+#kiosk-mode {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* ─── Overlays never trap a button off-screen ─────────────────────────────── */
+/* If content is taller than the screen, scroll it; "safe center" keeps the
+   top reachable instead of pushing it above the viewport. */
+[data-theme="dark"] #vg-preview-overlay,
+[data-theme="dark"] #vg-save-error-overlay,
+[data-theme="dark"] #vg-question-overlay,
+#kiosk-camera-lost,
+#pin-overlay,
+#disclaimer-overlay {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+[data-theme="dark"] #vg-save-error-overlay,
+#kiosk-camera-lost {
+  justify-content: safe center !important;
+}
+
+#pin-overlay,
+#disclaimer-overlay {
+  align-items: safe center !important;
+  padding: var(--space-4);
+}
+
+#pin-overlay .kiosk-card {
+  width: min(340px, 100%) !important;
+}
+
+/* ─── Preview: the video leaves room for its controls ─────────────────────── */
+[data-theme="dark"] #vg-preview-video {
+  max-height: min(62vh, calc(100dvh - 250px));
+}
+
+[data-theme="dark"] #vg-control-bar {
+  width: min(680px, 100%);
+}
+
+/* ─── Admin ───────────────────────────────────────────────────────────────── */
+/* The sidebar stays in view and scrolls by itself, so every section stays
+   reachable on a short landscape screen. */
+@media (min-width: 701px) {
+  .dashboard-layout .sidebar {
+    position: sticky;
+    top: 0;
+    align-self: flex-start;
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+  }
+}
+
+.capture-tabs-nav {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+@media (max-width: 420px) {
+  .capture-tab-btn {
+    padding: 0.5rem 0.7rem;
+  }
+}
+
+/* ─── Narrow: portrait phones ─────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  /* Re-do and Stop fit side by side within the screen. */
+  [data-theme="dark"] #vg-controls {
+    width: calc(100% - var(--space-8));
+    justify-content: center;
+    gap: var(--space-3);
+    bottom: max(var(--space-6), env(safe-area-inset-bottom));
+  }
+
+  [data-theme="dark"] .vg-redo-btn,
+  [data-theme="dark"] .vg-stop-btn {
+    min-height: 64px;
+    padding: 0 var(--space-5);
+    font-size: var(--text-base);
+  }
+
+  [data-theme="dark"] .vg-stop-btn {
+    flex: 1 1 auto;
+    max-width: 260px;
+  }
+
+  /* The question card moves from beside the timer to a full-width card just
+     above the controls, so it no longer covers the HUD. */
+  [data-theme="dark"] #vg-prompt-sidebar {
+    top: auto;
+    bottom: calc(var(--space-6) + 64px + var(--space-4));
+    left: var(--space-4);
+    right: var(--space-4);
+    width: auto;
+  }
+
+  /* Question screen: prompt on top, Let's Go below, instead of two columns. */
+  [data-theme="dark"] #vg-question-overlay {
+    flex-direction: column;
+  }
+
+  [data-theme="dark"] #vg-question-overlay .vg-qs-left {
+    flex: 1 1 auto;
+    justify-content: flex-end;
+    padding: var(--space-8) var(--space-6) var(--space-6);
+  }
+
+  [data-theme="dark"] #vg-question-overlay .vg-qs-right {
+    flex: 0 0 auto;
+    gap: var(--space-5);
+    padding: var(--space-6) var(--space-6) var(--space-10);
+    border-left: none;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  [data-theme="dark"] .vg-letsgo-btn {
+    width: 100%;
+    max-width: 320px;
+    height: 72px;
+  }
+}
+
+/* ─── Short: landscape phones ─────────────────────────────────────────────── */
+@media (max-height: 560px) {
+  /* Recording: smaller HUD and controls so the guest's face stays visible. */
+  [data-theme="dark"] #vg-hud {
+    top: var(--space-3);
+    gap: var(--space-1);
+  }
+
+  [data-theme="dark"] .vg-timer {
+    font-size: var(--text-2xl);
+  }
+
+  [data-theme="dark"] #vg-controls {
+    bottom: max(var(--space-4), env(safe-area-inset-bottom));
+  }
+
+  [data-theme="dark"] .vg-redo-btn,
+  [data-theme="dark"] .vg-stop-btn {
+    min-height: var(--touch-comfy);
+    padding: 0 var(--space-6);
+    font-size: var(--text-base);
+  }
+
+  [data-theme="dark"] #vg-prompt-sidebar {
+    top: var(--space-3);
+    right: var(--space-3);
+    max-height: calc(100dvh - var(--touch-comfy) - var(--space-10));
+  }
+
+  [data-theme="dark"] .vg-prompt-sidebar-text {
+    font-size: var(--text-base);
+  }
+
+  /* Question screen: tighter padding, smaller type and button. */
+  [data-theme="dark"] #vg-question-overlay .vg-qs-left {
+    gap: var(--space-3);
+    padding: var(--space-6) var(--space-8);
+  }
+
+  [data-theme="dark"] #vg-question-overlay .vg-qs-right {
+    gap: var(--space-4);
+    padding: var(--space-6);
+  }
+
+  [data-theme="dark"] .vg-question-text {
+    font-size: clamp(1.25rem, 3.4vw, var(--text-2xl));
+  }
+
+  [data-theme="dark"] .vg-qs-cta-title {
+    font-size: var(--text-xl);
+  }
+
+  [data-theme="dark"] .vg-letsgo-btn {
+    height: 64px;
+    min-width: 180px;
+  }
+
+  /* Splash, save error and PB offer: smaller headline and icon. */
+  [data-theme="dark"] #vg-prompt-splash .vg-splash-icon {
+    width: 64px;
+    height: 64px;
+    font-size: 1.75rem;
+  }
+
+  [data-theme="dark"] #vg-save-error-overlay {
+    gap: var(--space-2);
+    padding: var(--space-4);
+  }
+
+  [data-theme="dark"] .vg-save-error-icon {
+    width: 56px;
+    height: 56px;
+    font-size: 1.5rem;
+  }
+
+  [data-theme="dark"] #vg-save-error-overlay h2 {
+    font-size: var(--text-2xl);
+  }
+
+  [data-theme="dark"] .vg-save-error-actions {
+    margin-top: var(--space-2);
+  }
+
+  /* PIN pad: compact so all four rows fit a 360px-tall screen. */
+  #pin-overlay .kiosk-card {
+    padding: var(--space-4) var(--space-6) !important;
+  }
+
+  #pin-overlay .kiosk-card p {
+    margin-bottom: var(--space-2) !important;
+  }
+
+  #pin-display {
+    height: 2rem !important;
+    margin-bottom: var(--space-2) !important;
+    font-size: 1.5rem !important;
+  }
+
+  #pin-overlay .kiosk-card > div[style*="grid"] {
+    gap: var(--space-2) !important;
+    margin-bottom: 0 !important;
+  }
+
+  .pin-key {
+    min-height: var(--touch-min);
+    padding: 0.4rem 0.5rem;
+  }
+}
+
+/* Preview on a short landscape screen: video on the left, controls on the
+   right, so nothing is pushed below the screen. */
+@media (orientation: landscape) and (max-height: 560px) {
+  [data-theme="dark"] #vg-preview-overlay {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+    grid-template-rows: 1fr auto auto auto 1fr;
+    column-gap: var(--space-6);
+    row-gap: var(--space-3);
+    align-items: center;
+    justify-items: center;
+    padding: var(--space-3) var(--space-6);
+  }
+
+  [data-theme="dark"] #vg-preview-video {
+    grid-column: 1;
+    grid-row: 1 / -1;
+    max-width: 100%;
+    max-height: calc(100dvh - var(--space-6));
+  }
+
+  [data-theme="dark"] #vg-preview-msg {
+    grid-column: 2;
+    grid-row: 2;
+    text-align: center;
+  }
+
+  [data-theme="dark"] #vg-control-bar {
+    grid-column: 2;
+    grid-row: 3;
+    width: 100%;
+  }
+
+  [data-theme="dark"] #btn-vg-preview-close {
+    grid-column: 2;
+    grid-row: 4;
+    margin-top: 0;
+  }
+}

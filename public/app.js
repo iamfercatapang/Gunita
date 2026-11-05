@@ -1234,6 +1234,16 @@ $(document).ready(function() {
         }
     });
 
+    // Re-fit the viewfinder when the screen rotates or the window resizes, so
+    // a phone or iPad turned mid-session keeps the slot's shape on screen.
+    let _vfResizeTimer = null;
+    window.addEventListener('resize', function() {
+        clearTimeout(_vfResizeTimer);
+        _vfResizeTimer = setTimeout(function() {
+            if ($('#kiosk-mode').is(':visible')) applyKioskViewfinderSize();
+        }, 150);
+    });
+
     function applyKioskViewfinderSize() {
         // Derive slot AR from the chosen layout so the viewfinder shows
         // exactly what drawPhoto() will capture for each photo slot.
@@ -2467,7 +2477,9 @@ $(document).ready(function() {
             muteBtn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
             msg.style.display = '';
             msg.textContent = 'Playing back your message…';
-            overlay.style.display = 'flex';
+            // Clear the inline display:none so the stylesheet picks the layout
+            // (a column normally, video beside controls on short landscape).
+            overlay.style.display = '';
 
             // Control bar event handlers
             function onTimeUpdate() {
