@@ -16,7 +16,7 @@ Try it at https://iamfercatapang.github.io/Gunita/.
 
 - Guests record video answers to prompts you write, such as "What's your best advice for the couple?", and can redo a take. You can put an overlay frame on the video.
 - After the video, guests are offered the photo booth. Layouts cover 2×6 strips and 4×6 or 5×7 prints, portrait or landscape, with one to four photos, and you can add your own template background.
-- Files go to a folder you pick on the device (File System Access API) or download if the browser can't do that. Google Drive upload is optional. If the Wi-Fi drops, uploads wait in the browser's storage and go out when the connection comes back, even after a reload.
+- Files go to a folder you pick on the device (File System Access API) or download if the browser can't do that. On iPad and iPhone, where Safari has no folder picker, they're kept inside the app instead, and you export them to Files or Photos from the admin panel after the event. Google Drive upload is optional. If the Wi-Fi drops, uploads wait in the browser's storage and go out when the connection comes back, even after a reload.
 - Hosts can follow along on their phones: scan a QR code or open the link, and each capture shows up as it's made. This runs peer to peer over PeerJS.
 - A PIN keeps guests out of the admin side. It's stored as a PBKDF2 hash.
 - The admin dashboard is where you set up the welcome screen, prompts, layouts, overlays, the disclaimer, the PIN and the live viewer. The welcome screen page shows a preview while you edit.

@@ -275,10 +275,30 @@
 
                                 <!-- Local folder picker -->
                                 <div id="vg-local-folder-config" class="folder-picker-box">
-                                    <p class="admin-form-meta">Choose where recordings and photos will be saved (shared folder for all captures).</p>
-                                    <div class="admin-form-actions">
-                                        <button id="btn-vg-select-dir" class="btn-outline">Select Save Folder</button>
-                                        <span id="vg-dir-status" class="dir-status-text">No folder selected (Will prompt download)</span>
+                                    <div id="local-folder-picker">
+                                        <p class="admin-form-meta">Choose where recordings and photos will be saved (shared folder for all captures).</p>
+                                        <div class="admin-form-actions">
+                                            <button id="btn-vg-select-dir" class="btn-outline">Select Save Folder</button>
+                                            <span id="vg-dir-status" class="dir-status-text">No folder selected (Will prompt download)</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- iPad / iPhone: Safari has no folder picker, so captures are kept in the
+                                         app's own storage and exported from here (src/lib/capture/device-store.ts). -->
+                                    <div id="device-store-box" style="display:none;">
+                                        <p class="admin-form-meta">Recordings and photos are kept inside the app on this device, with no download prompts. Export them to Files or Photos when you're ready, then clear what you've exported to free up space.</p>
+                                        <div class="device-store-stats" role="status" aria-live="polite">
+                                            <div class="device-store-stat"><strong id="ds-pending">0</strong><span>to export</span></div>
+                                            <div class="device-store-stat"><strong id="ds-exported">0</strong><span>exported</span></div>
+                                            <div class="device-store-stat"><strong id="ds-used">0 MB</strong><span>used</span></div>
+                                            <div class="device-store-stat"><strong id="ds-free">–</strong><span>free</span></div>
+                                        </div>
+                                        <p id="ds-persist-note" class="admin-form-meta" style="display:none;"></p>
+                                        <div class="admin-form-actions">
+                                            <button id="btn-ds-export" class="btn-primary" disabled>Export to Files or Photos</button>
+                                            <button id="btn-ds-clear" class="btn-outline" disabled>Clear exported</button>
+                                        </div>
+                                        <p id="ds-message" class="admin-form-meta" role="status"></p>
                                     </div>
                                 </div>
 
