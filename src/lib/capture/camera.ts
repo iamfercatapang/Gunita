@@ -17,6 +17,32 @@ const VIDEO_CONSTRAINTS = {
   frameRate: { ideal: 30, max: 30 },
 } as const;
 
+/**
+ * Slots at least this wide (width / height) get a 16:9 camera mode; anything
+ * squarer gets 4:3. Halfway between 4:3 (1.33) and 16:9 (1.78).
+ */
+const WIDE_SLOT_RATIO = 1.55;
+
+/**
+ * Camera constraints for a photo-booth still, chosen from the shape of the
+ * layout's photo slot. Cameras deliver landscape frames in 4:3 or 16:9, and
+ * the compositor centre-crops that frame to the slot, so the closer the
+ * frame's shape is to the slot, the less is cropped away. Ideal-only (no max,
+ * no aspectRatio) so the browser picks its largest mode of that shape, and a
+ * camera without one falls back to its nearest large mode rather than a
+ * low-resolution one. frameRate keeps webcams that only do 4K at a few
+ * frames per second from making the live viewfinder choppy.
+ *
+ * Unlike the guestbook recording (capped at 1080p for the encoder), stills
+ * ask for the largest frame the camera offers.
+ */
+export function photoConstraintsForSlot(slotW: number, slotH: number): MediaTrackConstraints {
+  const wide = slotH > 0 && slotW / slotH >= WIDE_SLOT_RATIO;
+  return wide
+    ? { width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } }
+    : { width: { ideal: 4096 }, height: { ideal: 3072 }, frameRate: { ideal: 30 } };
+}
+
 /** ID of the <video> element wired to the VG viewfinder. */
 const VG_FEED_EL_ID = 'vg-camera-feed';
 
@@ -71,16 +97,23 @@ export class VgCameraManager {
    * recording. The recording flow releases camera and mic as soon as the
    * guest stops (so playback isn't routed to a Bluetooth mic), and this
    * re-opens just the camera if they accept the photo booth offer.
+   *
+   * `constraints` comes from photoConstraintsForSlot() for the chosen
+   * layout, so the still uses the camera mode that fits its slot.
    */
-  async acquireVideoOnly(cameraId: string): Promise<MediaStream> {
+  async acquirePhotoCamera(
+    cameraId: string,
+    constraints: MediaTrackConstraints,
+  ): Promise<MediaStream> {
     this.stopExisting();
-    const videoConstraints: MediaTrackConstraints = { ...VIDEO_CONSTRAINTS };
+    const videoConstraints: MediaTrackConstraints = { ...constraints };
     if (cameraId) {
       videoConstraints.deviceId = { exact: cameraId };
     }
     const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
     window.currentStream = stream;
     this.attachTrackWatchdog(stream);
+    logTrackSize('[PB] Photo camera', stream);
     return stream;
   }
 
@@ -146,6 +179,12 @@ export class VgCameraManager {
       };
     }
   }
+}
+
+/** Log the frame size the camera actually delivered (for real-device checks). */
+export function logTrackSize(label: string, stream: MediaStream): void {
+  const s = stream.getVideoTracks()[0]?.getSettings();
+  if (s?.width && s.height) console.info(`${label}: ${s.width}×${s.height}`);
 }
 
 function hasLiveVideoTrack(stream: MediaStream): boolean {

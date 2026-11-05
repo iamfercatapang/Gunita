@@ -921,11 +921,12 @@ $(document).ready(function() {
                 resetToWelcomeScreen();
             } else {
                 // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
-                const videoConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+                const videoConstraints = _pbPhotoConstraints();
                 if (appConfig.selectedCameraId) {
                     videoConstraints.deviceId = { exact: appConfig.selectedCameraId };
                 }
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+                window.PB.capture.logTrackSize('[PB] Photo camera', currentStream);
                 $('#camera-feed')[0].srcObject = currentStream;
                 applyKioskViewfinderSize();
 
@@ -1484,6 +1485,14 @@ $(document).ready(function() {
     function computeLayout() {
         const def = LAYOUT_DEFS[appConfig.layout] || LAYOUT_DEFS['4x6-1'];
         return window.PB.capture.computeLayout(def);
+    }
+
+    // Camera constraints for photo-booth stills, matched to the chosen
+    // layout's slot shape: 4:3 for portrait/square slots, 16:9 for wide ones,
+    // at the largest size the camera offers. Less of the frame is cropped.
+    function _pbPhotoConstraints() {
+        const slot = computeLayout().photoSlots[0];
+        return window.PB.capture.photoConstraintsForSlot(slot.w, slot.h);
     }
 
     // ==================== VIDEO GUESTBOOK ====================
@@ -2146,7 +2155,10 @@ $(document).ready(function() {
                 // (_releaseVgCapture); re-open it, video only, on the same
                 // camera the guest just used.
                 try {
-                    await window.PB.capture.camera.acquireVideoOnly(appConfig.vgSelectedCameraId || '');
+                    await window.PB.capture.camera.acquirePhotoCamera(
+                        appConfig.vgSelectedCameraId || '',
+                        _pbPhotoConstraints()
+                    );
                 } catch (err) {
                     console.error('[VG→PB] Could not re-open the camera for the photo booth:', err);
                     _showCameraLost();

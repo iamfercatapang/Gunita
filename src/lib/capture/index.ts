@@ -1,4 +1,4 @@
-export { VgCameraManager } from './camera';
+export { logTrackSize, photoConstraintsForSlot, VgCameraManager } from './camera';
 export type { VgCameraManagerDeps } from './camera';
 export { computeLayout, drawCoverFrame, drawPhoto } from './compositor';
 export { downloadBlob, makeFilename, saveBlobLocally } from './local-storage';

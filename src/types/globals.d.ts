@@ -63,6 +63,8 @@ declare global {
       };
       capture: {
         camera: VgCameraManager;
+        photoConstraintsForSlot: (slotW: number, slotH: number) => MediaTrackConstraints;
+        logTrackSize: (label: string, stream: MediaStream) => void;
         computeLayout: (def: LayoutDef) => ComputedLayout;
         drawPhoto: (
           ctx: CanvasRenderingContext2D,
