@@ -21,7 +21,25 @@ import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
 import '@fontsource/inter/700.css';
+// Fraunces — display serif for kiosk hero title + VG question prompts only.
+// Loaded but not applied yet; component CSS opts in via var(--font-display).
+import '@fontsource/fraunces/400.css';
+import '@fontsource/fraunces/500.css';
+import '@fontsource/fraunces/600.css';
+import '@fontsource/fraunces/700.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
+
+// Design tokens — primitive + semantic. Theme-scoped via [data-theme].
+// Foundation only: nothing visually changes until components opt in.
+import './styles/tokens.css';
+import './styles/themes.css';
+import './styles/welcome.css';
+import './styles/pb-offer.css';
+import './styles/done-screen.css';
+import './styles/admin.css';
+import './styles/pb-capture.css';
+import './styles/vg-recording.css';
+import './styles/live-viewer.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
 import './constants';
@@ -31,6 +49,7 @@ import {
   VgCameraManager,
   computeLayout,
   downloadBlob,
+  drawCoverFrame,
   drawPhoto,
   makeFilename,
   saveBlobLocally,
@@ -201,6 +220,7 @@ window.PB.capture = {
   camera: vgCameraManager,
   computeLayout,
   drawPhoto,
+  drawCoverFrame,
   makeFilename,
   saveBlobLocally,
   downloadBlob,

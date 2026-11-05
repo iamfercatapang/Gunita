@@ -28,7 +28,6 @@ export interface AppConfig {
 
   // Templates / framing
   templateBg: { objectUrl: string; img: HTMLImageElement } | null;
-  vgFrameBg: { objectUrl: string; img: HTMLImageElement } | null;
 
   // Filename / camera
   eventName: string;
@@ -109,7 +108,6 @@ const defaultAppConfig: AppConfig = {
   vgSaveDrive: false,
   vgOverlay: null,
   templateBg: null,
-  vgFrameBg: null,
   eventName: '',
   selectedCameraId: '',
   disclaimerEnabled: false,
@@ -261,6 +259,7 @@ export function startNewSession(): string {
 // these window assignments can be removed.
 window.appConfig = appConfig;
 window.saveConfig = saveConfig;
+window._scheduleSave = _scheduleSave;
 window.generateSessionId = generateSessionId;
 window.startNewSession = startNewSession;
 

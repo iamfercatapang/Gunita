@@ -1,0 +1,616 @@
+/* =============================================================================
+ * Video Guestbook recording flow (Phase 3h)
+ * =============================================================================
+ *
+ * Restyles the guest-facing VG recording screens onto the design tokens:
+ *   - #vg-prompt-splash      "Get ready" splash (was sky blue)
+ *   - #vg-question-overlay   prompt + Let's Go (was olive / off-white split)
+ *   - #vg-countdown-overlay  pre-record countdown, matches the PB countdown
+ *   - #vg-prompt-sidebar     prompt reminder while recording
+ *   - #vg-hud                REC badge, timer, time left, mic status
+ *   - #vg-controls           Re-do / Stop
+ *   - #vg-processing-overlay saving state
+ *   - #vg-save-error-overlay local save failure (inline styles moved here)
+ *   - #vg-preview-overlay    playback preview (inline styles moved here)
+ *
+ * Theme: scoped to [data-theme="dark"] (set on #kiosk-mode), which also lifts
+ * these rules above the legacy selectors in styles.css.
+ * ============================================================================= */
+
+/* ─── Shared kiosk buttons (save error + preview) ─────────────────────────── */
+[data-theme="dark"] .vg-btn {
+  display: inline-flex;
+  white-space: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: var(--touch-comfy);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background var(--duration-ui) var(--ease-out), transform var(--duration-ui)
+    var(--ease-out);
+}
+
+[data-theme="dark"] .vg-btn:active {
+  transform: scale(0.97);
+}
+
+[data-theme="dark"] .vg-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+[data-theme="dark"] .vg-btn--primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+[data-theme="dark"] .vg-btn--primary:hover {
+  background: var(--accent-hover);
+}
+
+[data-theme="dark"] .vg-btn--ghost {
+  background: var(--bg-glass);
+  border-color: var(--border-default);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .vg-btn--ghost:hover {
+  background: var(--bg-glass-strong);
+}
+
+/* ─── Splash ──────────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-prompt-splash {
+  gap: var(--space-5);
+  padding: var(--space-8);
+  background: var(--bg-overlay-strong);
+}
+
+[data-theme="dark"] #vg-prompt-splash .vg-splash-icon {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-size: 2.5rem;
+  filter: none;
+  animation: vg-breathe 2.4s var(--ease-in-out) infinite;
+}
+
+[data-theme="dark"] #vg-prompt-splash .vg-splash-heading {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: clamp(2.25rem, 6vw, var(--text-5xl));
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  text-shadow: none;
+}
+
+[data-theme="dark"] #vg-prompt-splash .vg-splash-sub {
+  font-size: clamp(1rem, 2.2vw, var(--text-lg));
+  line-height: var(--leading-relaxed);
+  color: var(--text-secondary);
+  max-width: 520px;
+}
+
+[data-theme="dark"] #vg-prompt-splash .vg-splash-dots span {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-soft-text);
+}
+
+/* ─── Question screen ─────────────────────────────────────────────────────── */
+/* One dark surface, prompt on the left and the action on the right, split
+   by a hairline instead of the old olive / off-white halves. */
+[data-theme="dark"] #vg-question-overlay {
+  background: var(--bg-overlay-strong);
+}
+
+[data-theme="dark"] #vg-question-overlay .vg-qs-left {
+  flex: 0 0 62%;
+  gap: var(--space-5);
+  padding: clamp(2rem, 5vw, 4.5rem);
+  background: transparent;
+}
+
+[data-theme="dark"] #vg-question-overlay .vg-qs-right {
+  gap: var(--space-8);
+  padding: var(--space-10);
+  background: transparent;
+  border-left: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"] .vg-question-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+}
+
+[data-theme="dark"] .vg-question-quote {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  color: var(--accent-soft-text);
+  opacity: 0.6;
+}
+
+[data-theme="dark"] .vg-question-text {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-style: normal;
+  font-size: clamp(1.75rem, 3.8vw, var(--text-4xl));
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+  text-shadow: none;
+  text-wrap: balance;
+}
+
+[data-theme="dark"] .vg-reroll-wrap {
+  gap: var(--space-4);
+}
+
+[data-theme="dark"] .vg-reroll-dot {
+  width: 8px;
+  height: 8px;
+  background: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .vg-reroll-dot.used {
+  background: var(--border-default);
+}
+
+[data-theme="dark"] .vg-reroll-btn-qs {
+  min-height: var(--touch-min);
+  padding: 0 var(--space-5);
+  gap: var(--space-2);
+  border: 1px solid var(--border-default);
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  touch-action: manipulation;
+}
+
+[data-theme="dark"] .vg-reroll-btn-qs:hover {
+  background: var(--bg-glass-strong);
+}
+
+[data-theme="dark"] .vg-reroll-btn-qs:disabled {
+  opacity: 0.4;
+}
+
+[data-theme="dark"] .vg-reroll-hint {
+  font-style: normal;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .vg-qs-cta-title {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: clamp(1.75rem, 3.2vw, var(--text-3xl));
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text-primary);
+}
+
+/* Let's Go: the same teal hero pill as the welcome screen's CTA. */
+[data-theme="dark"] .vg-letsgo-btn {
+  width: auto;
+  height: var(--touch-hero);
+  min-width: 220px;
+  padding: 0 var(--space-10);
+  border: none;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  box-shadow: var(--shadow-glow-accent);
+  touch-action: manipulation;
+  transition: background var(--duration-ui) var(--ease-out), transform var(--duration-ui)
+    var(--ease-out);
+}
+
+[data-theme="dark"] .vg-letsgo-btn:hover {
+  background: var(--accent-hover);
+  transform: scale(1.03);
+  box-shadow: var(--shadow-glow-accent);
+}
+
+[data-theme="dark"] .vg-letsgo-btn:active {
+  transform: scale(0.97);
+}
+
+/* ─── Countdown ───────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-countdown-overlay {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: min(42vh, 22vw);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 8px 40px rgba(11, 11, 15, 0.65);
+}
+
+/* ─── Prompt reminder ─────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-prompt-sidebar {
+  top: var(--space-6);
+  right: var(--space-6);
+  width: min(320px, 32vw);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  gap: var(--space-2);
+  border-radius: var(--radius-lg);
+  border-color: var(--border-default);
+  background: rgba(11, 11, 15, 0.66);
+  backdrop-filter: var(--glass-blur);
+  max-height: 240px;
+}
+
+[data-theme="dark"] #vg-prompt-sidebar.collapsed {
+  max-height: 64px;
+  padding-bottom: var(--space-3);
+}
+
+/* The chevron was ~13px tall with no padding; give it a real target. */
+[data-theme="dark"] .vg-prompt-collapse-btn {
+  display: grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  margin: calc(var(--space-2) * -1) calc(var(--space-2) * -1) 0 0;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  touch-action: manipulation;
+}
+
+[data-theme="dark"] .vg-prompt-collapse-btn:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .vg-prompt-sidebar-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .vg-prompt-sidebar-text {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: clamp(1.05rem, 2.2vw, var(--text-xl));
+  line-height: var(--leading-snug);
+  color: var(--text-primary);
+  text-shadow: none;
+}
+
+/* ─── HUD ─────────────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-hud {
+  top: var(--space-6);
+  gap: var(--space-2);
+}
+
+[data-theme="dark"] .vg-rec-badge,
+[data-theme="dark"] .vg-time-left,
+[data-theme="dark"] #vg-mic-badge {
+  border: 1px solid var(--border-subtle);
+  background: rgba(11, 11, 15, 0.6);
+  backdrop-filter: var(--glass-blur);
+  text-shadow: none;
+}
+
+[data-theme="dark"] .vg-rec-badge {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+}
+
+[data-theme="dark"] .vg-rec-dot {
+  background: var(--danger);
+  animation: vg-rec-pulse 1.4s var(--ease-in-out) infinite;
+}
+
+[data-theme="dark"] .vg-timer {
+  font-family: var(--font-sans);
+  font-size: var(--text-4xl);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-tight);
+  text-shadow: 0 2px 12px rgba(11, 11, 15, 0.6);
+}
+
+[data-theme="dark"] .vg-time-left {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--tracking-wide);
+}
+
+[data-theme="dark"] #vg-mic-badge {
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+[data-theme="dark"] #vg-mic-badge.mic-ok {
+  color: var(--success-soft-text);
+}
+
+[data-theme="dark"] #vg-mic-badge.mic-muted {
+  color: var(--warning-soft-text);
+}
+
+[data-theme="dark"] #vg-mic-badge.mic-none {
+  color: var(--danger-soft-text);
+}
+
+/* ─── Controls ────────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-controls {
+  bottom: var(--space-10);
+  gap: var(--space-4);
+}
+
+[data-theme="dark"] .vg-redo-btn,
+[data-theme="dark"] .vg-stop-btn {
+  flex-direction: row;
+  gap: var(--space-3);
+  min-height: var(--touch-hero);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-full);
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+  backdrop-filter: var(--glass-blur);
+  touch-action: manipulation;
+  transition: background var(--duration-ui) var(--ease-out), transform var(--duration-ui)
+    var(--ease-out);
+}
+
+[data-theme="dark"] .vg-redo-btn {
+  border: 1px solid var(--border-strong);
+  background: rgba(11, 11, 15, 0.55);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .vg-redo-btn:hover {
+  background: rgba(11, 11, 15, 0.7);
+  transform: none;
+}
+
+[data-theme="dark"] .vg-stop-btn {
+  padding: 0 var(--space-10);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--color-danger-600);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(220, 38, 38, 0.35);
+}
+
+[data-theme="dark"] .vg-stop-btn:hover {
+  background: var(--color-danger-500);
+  transform: none;
+}
+
+[data-theme="dark"] .vg-redo-btn:active,
+[data-theme="dark"] .vg-stop-btn:active {
+  transform: scale(0.97);
+}
+
+[data-theme="dark"] .vg-redo-btn svg,
+[data-theme="dark"] .vg-stop-btn svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+
+/* ─── Processing ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-processing-overlay {
+  gap: var(--space-5);
+  background: var(--bg-overlay);
+}
+
+[data-theme="dark"] #vg-processing-overlay .spinner {
+  width: 56px;
+  height: 56px;
+  margin: 0;
+  border: 4px solid var(--accent-soft-bg);
+  border-top-color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] #vg-processing-overlay h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-medium);
+  color: var(--text-primary);
+}
+
+/* ─── Save error ──────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-save-error-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-8);
+  text-align: center;
+  background: var(--bg-overlay-strong);
+}
+
+[data-theme="dark"] .vg-save-error-icon {
+  display: grid;
+  place-items: center;
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius-full);
+  background: var(--danger-soft-bg);
+  color: var(--danger-soft-text);
+  font-size: 2rem;
+}
+
+[data-theme="dark"] #vg-save-error-overlay h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  font-size: var(--text-3xl);
+  line-height: var(--leading-tight);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] #vg-save-error-msg {
+  margin: 0;
+  max-width: 420px;
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .vg-save-error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* ─── Preview ─────────────────────────────────────────────────────────────── */
+[data-theme="dark"] #vg-preview-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  background: var(--bg-overlay-strong);
+}
+
+[data-theme="dark"] #vg-preview-video {
+  display: block;
+  max-width: 100%;
+  max-height: 62vh;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-hard);
+  background: #000;
+}
+
+[data-theme="dark"] #vg-preview-msg {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] #vg-control-bar {
+  max-width: 680px;
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--bg-glass);
+}
+
+/* A taller track so the thumb is easy to grab with a finger. */
+[data-theme="dark"] #vg-seek-bar {
+  height: 24px;
+  margin-bottom: var(--space-2);
+  accent-color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] #vg-controls-row {
+  gap: var(--space-3);
+}
+
+[data-theme="dark"] #btn-vg-play-pause,
+[data-theme="dark"] #btn-vg-mute {
+  display: grid;
+  place-items: center;
+  width: var(--touch-min);
+  height: var(--touch-min);
+  padding: 0;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-full);
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  touch-action: manipulation;
+}
+
+[data-theme="dark"] #btn-vg-play-pause:hover,
+[data-theme="dark"] #btn-vg-mute:hover {
+  background: var(--bg-glass-strong);
+}
+
+[data-theme="dark"] #vg-time-display {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  letter-spacing: var(--tracking-normal);
+}
+
+[data-theme="dark"] #btn-vg-preview-close {
+  margin-top: var(--space-2);
+}
+
+@keyframes vg-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes vg-rec-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────────────────────── */
+/* A steady REC dot, no looping splash motion, no countdown pop. */
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] #vg-prompt-splash,
+  [data-theme="dark"] #vg-prompt-splash .vg-splash-icon,
+  [data-theme="dark"] #vg-prompt-splash .vg-splash-dots span,
+  [data-theme="dark"] .vg-rec-dot,
+  [data-theme="dark"] #vg-prompt-sidebar,
+  [data-theme="dark"] #vg-countdown-overlay.cd-pop {
+    animation: none;
+  }
+}

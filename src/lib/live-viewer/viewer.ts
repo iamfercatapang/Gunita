@@ -11,8 +11,8 @@
 //   - Open a lightbox for photos / a Drive-link QR for videos and uploaded
 //     photos / a "still uploading" note for videos without a Drive link yet.
 //
-// All DOM IDs and classes are the same as the legacy code so the existing
-// CSS in styles.css continues to apply.
+// All DOM IDs and classes are the same as the legacy code. Styling lives in
+// src/styles/live-viewer.css (Phase 3i); nothing here sets colours inline.
 
 import { type DataConnection, Peer } from 'peerjs';
 
@@ -21,6 +21,13 @@ import type { LiveViewerMsg, PhotoMsg, VideoMsg } from './protocol';
 const STORE_MAX = 20;
 const RECONNECT_MS = 3000;
 const PEER_ERROR_RECONNECT_MS = 4000;
+
+type ConnectionState = 'connecting' | 'live' | 'reconnecting';
+
+// Feather-style QR glyph for the card button (was a 📱 emoji).
+const QR_ICON =
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM18 18h3v3h-3z"/></svg>';
+const QR_BUTTON_HTML = `<button type="button" class="viewer-qr-btn" aria-label="Show QR code to play from Google Drive">${QR_ICON}<span>QR</span></button>`;
 
 // Browsers expose QRCode as a global from the vendored qrcode.min.js script
 // (loaded by index.html). We don't import it.
@@ -108,7 +115,7 @@ export class LiveViewerClient {
     peer.on('open', () => {
       const conn = peer.connect(this.hostId, { reliable: true });
       conn.on('open', () => {
-        this.setStatusDot('#22c55e');
+        this.setConnectionState('live');
         this.setStatusText('Live');
         this.setEventName('Connected — waiting for captures…');
       });
@@ -124,7 +131,7 @@ export class LiveViewerClient {
   }
 
   private scheduleReconnect(delay: number): void {
-    this.setStatusDot('#f59e0b');
+    this.setConnectionState('reconnecting');
     this.setStatusText('Reconnecting…');
     setTimeout(() => this.connectToHost(), delay);
   }
@@ -181,16 +188,17 @@ export class LiveViewerClient {
     if (driveUrl) item.dataset.driveUrl = driveUrl;
 
     const mediaHtml = type === 'photo' ? renderPhotoMedia(msg.data) : renderVideoMedia(msg.data);
-    const qrBtnHtml = driveUrl ? '<button class="viewer-qr-btn">📱 QR</button>' : '';
+    const qrBtnHtml = driveUrl ? QR_BUTTON_HTML : '';
+    const openLabel = type === 'photo' ? 'Open photo' : 'Open video';
 
     item.innerHTML = `
-      <div class="viewer-item-media" style="position:relative;width:100%;padding-top:${type === 'video' ? '56.25%' : '75%'};overflow:hidden;border-radius:8px 8px 0 0;cursor:pointer;">
-        <div style="position:absolute;inset:0;">${mediaHtml}</div>
+      <div class="viewer-item-media" role="button" tabindex="0" aria-label="${openLabel}">
+        <div class="viewer-item-frame">${mediaHtml}</div>
       </div>
-      <div class="viewer-item-footer" style="padding:0.4rem 0.6rem;display:flex;align-items:center;gap:0.4rem;">
+      <div class="viewer-item-footer">
+        <span class="viewer-item-label">${label}</span>
+        <span class="viewer-item-time">${ts}</span>
         ${qrBtnHtml}
-        <span style="font-size:0.78rem;font-weight:600;color:#f1f5f9;flex:1;">${label}</span>
-        <span style="font-size:0.72rem;color:#64748b;">${ts}</span>
       </div>
     `;
 
@@ -200,6 +208,12 @@ export class LiveViewerClient {
     //   video, no drive  → lightbox with explanatory note
     const media = item.querySelector('.viewer-item-media') as HTMLElement | null;
     if (media) {
+      media.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          media.click();
+        }
+      });
       media.addEventListener('click', () => {
         const currentDriveUrl = item.dataset.driveUrl || null;
         if (type === 'photo') {
@@ -234,14 +248,14 @@ export class LiveViewerClient {
     item.dataset.driveUrl = driveUrl;
     const footer = item.querySelector('.viewer-item-footer');
     if (footer && !footer.querySelector('.viewer-qr-btn')) {
-      const btn = document.createElement('button');
-      btn.className = 'viewer-qr-btn';
-      btn.innerHTML = '📱 QR';
+      const tmp = document.createElement('div');
+      tmp.innerHTML = QR_BUTTON_HTML;
+      const btn = tmp.firstElementChild as HTMLButtonElement;
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         this.openQrLightbox(driveUrl);
       });
-      footer.prepend(btn);
+      footer.append(btn);
     }
   }
 
@@ -301,7 +315,7 @@ export class LiveViewerClient {
           text: driveUrl,
           width: 220,
           height: 220,
-          colorDark: '#1e293b',
+          colorDark: '#131311',
           colorLight: '#fff',
           correctLevel: QRCode.CorrectLevel.M,
         });
@@ -404,9 +418,9 @@ export class LiveViewerClient {
 
   // ─── Tiny DOM helpers ────────────────────────────────────────────────────
 
-  private setStatusDot(color: string): void {
+  private setConnectionState(state: ConnectionState): void {
     const el = document.getElementById('viewer-status-dot');
-    if (el) el.style.background = color;
+    if (el) el.dataset.state = state;
   }
 
   private setStatusText(text: string): void {
@@ -429,16 +443,16 @@ export class LiveViewerClient {
 
 function renderPhotoMedia(data: string | null): string {
   if (data) {
-    return `<img src="${data}" alt="Photo" style="width:100%;height:100%;object-fit:cover;display:block;">`;
+    return `<img class="viewer-item-img" src="${data}" alt="">`;
   }
-  return `<div style="width:100%;height:100%;background:#1e293b;display:flex;align-items:center;justify-content:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
+  return `<div class="viewer-item-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></div>`;
 }
 
 function renderVideoMedia(data: string | null): string {
   if (data) {
-    const thumb = `<img src="${data}" alt="Video" style="width:100%;height:100%;object-fit:cover;display:block;opacity:0.9;">`;
-    const playOverlay = `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;"><div style="width:46px;height:46px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#fff"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>`;
+    const thumb = `<img class="viewer-item-img" src="${data}" alt="">`;
+    const playOverlay = `<div class="viewer-item-play" aria-hidden="true"><span><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg></span></div>`;
     return `${thumb}${playOverlay}`;
   }
-  return `<div style="width:100%;height:100%;background:#1e293b;display:flex;align-items:center;justify-content:center;"><svg width="36" height="36" viewBox="0 0 24 24" fill="currentColor" style="color:#475569;"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>`;
+  return `<div class="viewer-item-placeholder"><svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg></div>`;
 }

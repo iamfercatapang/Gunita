@@ -28,6 +28,7 @@ declare global {
     // Application config (mutated by admin UI)
     appConfig: AppConfig;
     saveConfig: () => void;
+    _scheduleSave: () => void;
 
     // Session helpers
     generateSessionId: () => string;
@@ -66,6 +67,17 @@ declare global {
           slotW: number,
           slotH: number,
         ) => Promise<void>;
+        drawCoverFrame: (
+          ctx: CanvasRenderingContext2D,
+          source: CanvasImageSource,
+          sourceW: number,
+          sourceH: number,
+          dx: number,
+          dy: number,
+          dw: number,
+          dh: number,
+          opts?: { mirror?: boolean },
+        ) => void;
         makeFilename: (eventName: string, ext?: string) => string;
         saveBlobLocally: (blob: Blob, filename: string, deps: LocalSaveDeps) => Promise<void>;
         downloadBlob: (blob: Blob, filename: string) => void;

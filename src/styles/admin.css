@@ -1,0 +1,1200 @@
+/* =============================================================================
+ * Admin polish — dark theme, design-token surfaces
+ * =============================================================================
+ *
+ * First polish pass on the admin dashboard. Introduces:
+ *   - `data-theme="dark"` is applied to #admin-dashboard, unifying admin with
+ *     the kiosk visually.
+ *   - Magenta active state on the sidebar (replaces the legacy blue) — brings
+ *     admin brand accent in line with the kiosk.
+ *   - `.admin-form-card` pattern: icon + title + subtitle head followed by a
+ *     body with consistent field rhythm. Used by the new Security panel and
+ *     the polished Dashboard Event Name card.
+ *
+ * Legacy `styles.css` is untouched; this file layers on top using the same
+ * selectors at higher specificity to flip the admin chrome to dark. Inline
+ * `color:` / `background:` styles in legacy admin panels will be migrated as
+ * each panel gets polished — this PR focuses on the visible chrome (page bg,
+ * sidebar, cards, inputs, buttons) so unpolished panels still read coherently.
+ * ============================================================================= */
+
+/* ─── Page chrome ─────────────────────────────────────────────────────────── */
+
+[data-theme="dark"].dashboard-layout {
+  background: var(--bg-base);
+  color: var(--text-secondary);
+  min-height: 100vh;
+}
+
+[data-theme="dark"].dashboard-layout .main-content {
+  background: var(--bg-base);
+  color: var(--text-secondary);
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+
+[data-theme="dark"].dashboard-layout .sidebar {
+  background: var(--bg-surface);
+  border-right-color: var(--border-default);
+}
+
+[data-theme="dark"].dashboard-layout .sidebar-header,
+[data-theme="dark"].dashboard-layout .sidebar-footer {
+  border-color: var(--border-subtle);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item {
+  color: var(--text-secondary);
+  border-radius: 0;
+  transition: background var(--duration-ui) var(--ease-out), color var(--duration-ui)
+    var(--ease-out), border-color var(--duration-ui) var(--ease-out);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item .icon {
+  color: var(--text-muted);
+  transition: color var(--duration-ui) var(--ease-out);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item:hover .icon {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item.active {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  border-left-color: var(--accent);
+}
+
+[data-theme="dark"].dashboard-layout .nav-item.active .icon {
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"].dashboard-layout .nav-section {
+  color: var(--text-muted);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-wider);
+}
+
+/* ─── Content header ──────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .content-header h1 {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--tracking-tight);
+}
+
+[data-theme="dark"] .content-header .content-header-sub {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0.35rem 0 2rem;
+  line-height: var(--leading-relaxed);
+}
+
+/* ─── Settings-card baseline (dark surface) ───────────────────────────────── */
+
+[data-theme="dark"] .settings-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .section-title {
+  color: var(--text-primary);
+}
+
+/* ─── .admin-form-card — unified panel card pattern ───────────────────────── */
+
+[data-theme="dark"] .admin-form-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-form-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-surface-raised);
+}
+
+.admin-form-card-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  flex-shrink: 0;
+}
+
+.admin-form-card-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  line-height: var(--leading-snug);
+  margin: 0;
+}
+
+.admin-form-card-required {
+  color: var(--accent-soft-text);
+  font-weight: var(--weight-bold);
+  margin-left: 0.2rem;
+}
+
+.admin-form-card-optional {
+  color: var(--text-muted);
+  font-weight: var(--weight-regular);
+  font-size: 0.88em;
+}
+
+.admin-form-card-subtitle {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+  margin: 0.25rem 0 0;
+}
+
+.admin-form-card-body {
+  padding: var(--space-5) var(--space-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.admin-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.admin-form-field > label {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-secondary);
+  letter-spacing: var(--tracking-normal);
+}
+
+.admin-form-field-hint {
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  margin-left: 0.2rem;
+}
+
+.admin-form-input-narrow {
+  width: 100%;
+  max-width: 280px;
+}
+
+.admin-form-input-wide {
+  width: 100%;
+  max-width: 460px;
+}
+
+.admin-form-meta {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: 0;
+  line-height: var(--leading-normal);
+}
+
+.admin-form-meta > code {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  font-size: 0.92em;
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+}
+
+.admin-form-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--danger-soft-bg);
+  border: 1px solid rgba(239, 68, 68, 0.32);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--danger-soft-text);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-snug);
+}
+
+.admin-form-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+/* Horizontal field-row: input + button(s) on the same line, input flex-grows. */
+.admin-form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.admin-form-row > select.text-input,
+.admin-form-row > input.text-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-form-row > .btn-outline,
+.admin-form-row > .btn-primary {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Smaller button variant for inline use within forms. */
+.btn-small {
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* Hairline divider above an element — used to separate slider-groups + the
+   filename helper at the bottom of Save Destination. */
+[data-theme="dark"] .admin-form-divider-top {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+/* Subgroup within an admin-form-card-body (e.g. Drive sub-config inside
+   Save Destination). Indented + dividers above. */
+[data-theme="dark"] .admin-form-subgroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  margin-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.admin-form-subgroup-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wider);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/* Test preview slot — used by the Camera section to show the live feed. */
+.admin-form-test-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+.admin-form-test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+[data-theme="dark"] .admin-form-test-header > span {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+}
+
+.admin-form-test-preview > video {
+  width: 100%;
+  max-height: 260px;
+  border-radius: var(--radius-md);
+  background: var(--color-graphite-950);
+  display: block;
+  object-fit: contain;
+}
+
+/* ─── Security panel specifics ────────────────────────────────────────────── */
+
+.kiosk-pin-status {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  font-weight: var(--weight-medium);
+  margin: 0;
+}
+
+.kiosk-pin-status:empty {
+  display: none;
+}
+
+.kiosk-pin-feedback {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+/* ─── Inputs (admin-wide dark surface) ────────────────────────────────────── */
+
+[data-theme="dark"] .text-input,
+[data-theme="dark"] input[type="text"]:not(.pin-key),
+[data-theme="dark"] input[type="password"],
+[data-theme="dark"] input[type="number"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] textarea,
+[data-theme="dark"] select.text-input {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+}
+
+[data-theme="dark"] .text-input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: var(--text-disabled);
+}
+
+[data-theme="dark"] .text-input:focus,
+[data-theme="dark"] textarea:focus,
+[data-theme="dark"] select.text-input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+/* ─── Buttons (admin-wide dark surface) ───────────────────────────────────── */
+
+[data-theme="dark"] .btn-outline {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  transition: background var(--duration-ui) var(--ease-out), border-color var(--duration-ui)
+    var(--ease-out);
+}
+
+[data-theme="dark"] .btn-outline:hover {
+  background: var(--bg-glass);
+  border-color: var(--text-primary);
+}
+
+[data-theme="dark"] .btn-primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+  border-radius: var(--radius-md);
+}
+
+[data-theme="dark"] .btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+/* ─── Toggle switches — dark surface ──────────────────────────────────────── */
+
+[data-theme="dark"] .toggle-switch .toggle-slider {
+  background: var(--bg-glass-strong);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .toggle-switch.is-on .toggle-slider {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .toggle-switch .toggle-label {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .toggle-switch.is-on .toggle-label {
+  color: var(--accent-soft-text);
+}
+
+/* ─── Gallery section ─────────────────────────────────────────────────────── */
+
+[data-theme="dark"] .gallery-section .gallery-header h3.section-title {
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  color: var(--text-primary);
+  letter-spacing: var(--tracking-normal);
+}
+
+[data-theme="dark"] .gallery-section .gallery-header a {
+  color: var(--accent-soft-text);
+  font-weight: var(--weight-semibold);
+}
+
+[data-theme="dark"] .gallery-section .gallery-header a:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .gallery-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .empty-gallery {
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-default);
+  color: var(--text-muted);
+}
+
+/* ─── Capture-tab nav (used in Dashboard gallery + elsewhere) ─────────────── */
+
+[data-theme="dark"] .capture-tabs-nav {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"] .capture-tab-btn {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .capture-tab-btn:hover {
+  background: var(--bg-glass-strong);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .capture-tab-btn.active {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"] .capture-tab-btn.active svg {
+  stroke: var(--text-primary);
+}
+
+[data-theme="dark"] .gallery-tab-count {
+  background: var(--bg-glass);
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .capture-tab-btn.active .gallery-tab-count {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+}
+
+/* =============================================================================
+ * Legacy panel polish — broad overrides for inline-styled markup
+ * =============================================================================
+ *
+ * The legacy admin panels (Capture Settings, Welcome, Photo, Photo Layout,
+ * Photo Template, Video Overlay, Thank You, Pre-Recording Prompts, Disclaimer,
+ * Live Gallery Viewer) all use hardcoded gray-on-white styling — either via
+ * styles.css component classes or via `style="color:#..."` inline attributes.
+ *
+ * Rather than touch every panel (huge diff), this section uses two strategies:
+ *   1. Override known component classes from styles.css with token-aware values.
+ *   2. Attribute-selector overrides for the most common inline color/bg patterns
+ *      (`!important` to beat inline specificity).
+ *
+ * As each panel gets a real polish pass, these brittle overrides can be removed
+ * in favor of clean markup using the .admin-form-card pattern.
+ * ============================================================================= */
+
+/* ─── Common admin component classes (legacy styles.css) ──────────────────── */
+
+[data-theme="dark"] .feature-toggle-row {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .feature-toggle-row .feature-icon {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .feature-toggle-row .feature-icon svg {
+  stroke: var(--text-primary);
+}
+
+/* Optical nudge: play-arrow glyphs sit visually left-of-center inside square
+   containers because the triangle's mass is on the left edge. A 2px right
+   shift restores the perceived center. */
+[data-theme="dark"] .feature-icon .fa-play {
+  transform: translateX(2px);
+}
+
+/* ─── Gallery modal (admin) ───────────────────────────────────────────────── */
+/* The modal renders outside #admin-dashboard via position:fixed, so it carries
+   its own `data-theme="dark"` attribute on the root element. */
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-inner {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-default);
+  box-shadow: var(--shadow-hard, 0 24px 64px rgba(0, 0, 0, 0.6));
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-header h2 {
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-weight: var(--weight-semibold);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-count {
+  font-size: var(--text-base);
+  font-weight: var(--weight-regular);
+  color: var(--text-muted);
+  margin-left: 0.25rem;
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-close {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-close:hover {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .gallery-modal-item {
+  background: var(--bg-glass);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"].gallery-modal-overlay .empty-gallery {
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-default);
+  color: var(--text-muted);
+}
+
+/* Tab nav inside the gallery modal — reuse the dark capture-tab styling. */
+[data-theme="dark"].gallery-modal-overlay .capture-tabs-nav {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn:hover {
+  background: var(--bg-glass-strong);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn.active {
+  background: var(--bg-surface-raised);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="dark"].gallery-modal-overlay .capture-tab-btn.active svg {
+  stroke: var(--text-primary);
+}
+
+[data-theme="dark"] .feature-title {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .feature-subtitle {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .tool-group > label,
+[data-theme="dark"] .tool-group label {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .info-box {
+  background: var(--accent-soft-bg);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .info-box p {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .info-box code {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .template-upload-card,
+[data-theme="dark"] .upload-empty-state {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .upload-empty-state p {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .btn-upload,
+[data-theme="dark"] .btn-secondary {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+}
+
+[data-theme="dark"] .btn-upload:hover,
+[data-theme="dark"] .btn-secondary:hover {
+  background: var(--bg-glass-strong);
+}
+
+[data-theme="dark"] .template-hint-bar {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+}
+
+[data-theme="dark"] .hint-icon {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .hint-layout-row strong {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .hint-size-badge {
+  background: var(--bg-glass-strong);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .hint-sub {
+  color: var(--text-muted);
+}
+
+/* Sliders */
+[data-theme="dark"] .slider-group label {
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .slider-value {
+  color: var(--text-primary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .custom-range {
+  background: transparent;
+}
+
+/* Printer panel */
+[data-theme="dark"] .printer-status-row,
+[data-theme="dark"] .printer-device-name {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .printer-status-badge {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .printer-device-icon {
+  background: var(--bg-glass);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .status-dot {
+  background: var(--success);
+}
+
+/* Paper / layout cards */
+[data-theme="dark"] .paper-card-content {
+  border-color: var(--border-default);
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .paper-size-card input:checked + .paper-card-content {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .paper-thumb {
+  background: var(--bg-glass-strong);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .paper-thumb.paper-auto {
+  color: var(--text-muted);
+  background: linear-gradient(135deg, var(--bg-glass) 50%, var(--bg-glass-strong) 50%);
+}
+
+[data-theme="dark"] .layout-size-name {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .selphy-badge.selphy-native {
+  background: var(--success-soft-bg);
+  color: var(--success-soft-text);
+}
+
+[data-theme="dark"] .selphy-badge.selphy-wide {
+  background: var(--info-soft-bg);
+  color: var(--info-soft-text);
+}
+
+[data-theme="dark"] .selphy-badge.selphy-scaled {
+  background: var(--warning-soft-bg);
+  color: var(--warning-soft-text);
+}
+
+[data-theme="dark"] .mini-paper {
+  background: var(--bg-glass);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .mini-paper-footer {
+  background: var(--bg-glass-strong);
+}
+
+/* Polaroid live preview (Photo Template panel) */
+[data-theme="dark"] .polaroid-preview {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .polaroid-preview .pp-photos,
+[data-theme="dark"] .polaroid-preview .pp-footer {
+  background: var(--bg-surface);
+}
+
+[data-theme="dark"] .polaroid-preview .pp-footer {
+  border-top-color: var(--border-subtle);
+}
+
+[data-theme="dark"] .pp-event-name,
+[data-theme="dark"] .pp-date {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .pp-date-line {
+  background: var(--text-primary);
+}
+
+[data-theme="dark"] .pp-hashtag,
+[data-theme="dark"] .pp-brand {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .pp-photo-placeholder {
+  background: var(--bg-glass-strong);
+}
+
+/* Color picker */
+[data-theme="dark"] .color-picker-wrapper {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] #color-hex {
+  color: var(--text-secondary);
+}
+
+/* Designer (Welcome) preview chrome */
+[data-theme="dark"] .designer-preview-container {
+  background: var(--bg-glass);
+}
+
+/* Prompt category buttons + list */
+[data-theme="dark"] .prompt-cat-btn {
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .prompt-cat-btn:hover {
+  background: var(--bg-glass-strong);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .prompt-cat-btn.active {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .prompt-list-item,
+[data-theme="dark"] #vg-prompts-list li {
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+}
+
+[data-theme="dark"] .prompt-preview-item {
+  color: var(--text-secondary);
+}
+
+/* Live Viewer panel */
+[data-theme="dark"] .lv-instructions-card,
+[data-theme="dark"] .lv-active-card,
+[data-theme="dark"] .lv-active-stats,
+[data-theme="dark"] .lv-info-card {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .lv-step-num {
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .lv-status-dot {
+  background: var(--text-muted);
+}
+
+[data-theme="dark"] .lv-status-dot.lv-dot-on {
+  background: var(--success);
+}
+
+/* Camera error card (sidebar) — already red-toned, just align with tokens */
+[data-theme="dark"] #camera-error-card {
+  background: var(--danger-soft-bg) !important;
+  border-color: rgba(239, 68, 68, 0.4) !important;
+  color: var(--danger-soft-text) !important;
+}
+
+[data-theme="dark"] #camera-error-card strong,
+[data-theme="dark"] #camera-error-card p {
+  color: var(--danger-soft-text) !important;
+}
+
+[data-theme="dark"] #btn-camera-error-close {
+  color: var(--danger-soft-text) !important;
+}
+
+/* ─── Attribute-selector overrides for inline color: styles ───────────────── */
+/* These coerce the most common hardcoded inline colors onto our token-aware
+   palette. Brittle by nature — only target the exact substrings we've found
+   in legacy admin markup. */
+
+[data-theme="dark"] [style*="color:#374151"],
+[data-theme="dark"] [style*="color: #374151"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="color:#4b5563"],
+[data-theme="dark"] [style*="color: #4b5563"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] [style*="color:#6b7280"],
+[data-theme="dark"] [style*="color: #6b7280"] {
+  color: var(--text-secondary) !important;
+}
+
+[data-theme="dark"] [style*="color:#9ca3af"],
+[data-theme="dark"] [style*="color: #9ca3af"] {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] [style*="color:#d1d5db"],
+[data-theme="dark"] [style*="color: #d1d5db"] {
+  color: var(--text-muted) !important;
+}
+
+[data-theme="dark"] [style*="color:#111827"],
+[data-theme="dark"] [style*="color: #111827"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="color:#1f2937"],
+[data-theme="dark"] [style*="color: #1f2937"] {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] [style*="color:#fff"][style*="color:#fff;"],
+[data-theme="dark"] [style*="color: #fff;"],
+[data-theme="dark"] [style*="color:#ffffff"],
+[data-theme="dark"] [style*="color: #ffffff"] {
+  /* Already white — leave as-is. Selector exists only to anchor the pattern. */
+}
+
+/* Inline background overrides — only the well-known light surfaces. */
+[data-theme="dark"] [style*="background:#fafafa"],
+[data-theme="dark"] [style*="background: #fafafa"] {
+  background: var(--bg-glass) !important;
+}
+
+[data-theme="dark"] [style*="background:#f3f4f6"],
+[data-theme="dark"] [style*="background: #f3f4f6"] {
+  background: var(--bg-glass) !important;
+}
+
+[data-theme="dark"] [style*="background:#f9fafb"],
+[data-theme="dark"] [style*="background: #f9fafb"] {
+  background: var(--bg-glass) !important;
+}
+
+[data-theme="dark"] [style*="background:#fef2f2"],
+[data-theme="dark"] [style*="background: #fef2f2"] {
+  background: var(--danger-soft-bg) !important;
+}
+
+[data-theme="dark"] [style*="border:1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border:1px solid #f3f4f6"],
+[data-theme="dark"] [style*="border:1px solid #fecaca"] {
+  border-color: var(--border-default) !important;
+}
+
+/* Inline preview frame chrome (Welcome admin live preview) — already token-aware
+   via welcome.css; this is just a safety net. */
+[data-theme="dark"] .preview-frame {
+  border: 1px solid var(--border-default);
+}
+
+/* ─── White inner containers that legacy styles.css hardcodes ─────────────── */
+
+/* Welcome Screen Designer left tools pane — was background:#fff. */
+[data-theme="dark"] .designer-tools {
+  background: var(--bg-surface);
+  border-color: var(--border-default);
+  color: var(--text-secondary);
+}
+
+/* Folder picker placeholder card — was background:#f8fafc + dashed light border. */
+[data-theme="dark"] .folder-picker-box {
+  background: var(--bg-glass);
+  border: 1px dashed var(--border-default);
+  color: var(--text-secondary);
+}
+
+/* Save Destination cards (.save-dest-*) — invert to dark glass with magenta
+   no, with accent-teal checked state instead of legacy blue. */
+[data-theme="dark"] .save-dest-inner {
+  background: var(--bg-glass);
+  border: 2px solid var(--border-default);
+}
+
+[data-theme="dark"] .save-dest-card input:checked + .save-dest-inner {
+  background: var(--accent-soft-bg);
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .save-dest-title {
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] .save-dest-card input:checked + .save-dest-inner .save-dest-title {
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .save-dest-icon {
+  color: var(--text-muted);
+}
+
+[data-theme="dark"] .save-dest-card input:checked + .save-dest-inner .save-dest-icon {
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .save-dest-check {
+  color: var(--accent-soft-text);
+}
+
+/* Inline border-top color used by drive-config sub-sections — coerce to token. */
+[data-theme="dark"] [style*="border-top:1px solid #f3f4f6"],
+[data-theme="dark"] [style*="border-top: 1px solid #f3f4f6"],
+[data-theme="dark"] [style*="border-top:1px solid #e5e7eb"],
+[data-theme="dark"] [style*="border-top: 1px solid #e5e7eb"] {
+  border-top-color: var(--border-subtle) !important;
+}
+
+/* Dir-status text inside the folder picker — was inline color:#6b7280. */
+[data-theme="dark"] .dir-status-text {
+  color: var(--text-muted);
+}
+
+/* Drive auth status text */
+[data-theme="dark"] #vg-drive-auth-status,
+[data-theme="dark"] #drive-auth-status {
+  color: var(--text-muted) !important;
+}
+
+/* ─── Upload-card hover + drag-over states ────────────────────────────────── */
+
+/* Legacy hovers set #fafafa on `.upload-empty-state` and a light blue
+   #eff6ff for drag-over. Both look white on dark. Override to glass. */
+
+[data-theme="dark"] .template-upload-card:hover .upload-empty-state {
+  background: var(--bg-glass-strong) !important;
+}
+
+[data-theme="dark"] .template-upload-card.drag-over {
+  border-color: var(--accent) !important;
+  background: var(--accent-soft-bg) !important;
+}
+
+[data-theme="dark"] .template-upload-card.drag-over .upload-empty-state {
+  background: var(--accent-soft-bg) !important;
+}
+
+/* Some uploaders have dashed borders on the outer card. */
+[data-theme="dark"] .template-upload-card {
+  border-color: var(--border-default);
+}
+
+/* Inner upload-empty-state body in default state — ensure transparent so
+   the parent card's dark bg shows through cleanly. */
+[data-theme="dark"] .upload-empty-state {
+  background: transparent;
+}
+
+/* ─── Range sliders (.custom-range) ───────────────────────────────────────── */
+
+[data-theme="dark"] .custom-range {
+  background: var(--bg-glass-strong);
+}
+
+[data-theme="dark"] .custom-range::-webkit-slider-thumb {
+  background: var(--accent);
+  border: 2px solid var(--bg-base);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .custom-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--bg-base);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+
+[data-theme="dark"] .custom-range::-moz-range-track {
+  background: var(--bg-glass-strong);
+  border-radius: 4px;
+  height: 6px;
+}
+
+[data-theme="dark"] .custom-range:hover::-webkit-slider-thumb,
+[data-theme="dark"] .custom-range:focus::-webkit-slider-thumb {
+  background: var(--accent-hover);
+}
+
+[data-theme="dark"] .custom-range:hover::-moz-range-thumb,
+[data-theme="dark"] .custom-range:focus::-moz-range-thumb {
+  background: var(--accent-hover);
+}
+
+/* ─── Photo Layout cards (.layout-card) ───────────────────────────────────── */
+
+[data-theme="dark"] .layout-card .card-content {
+  border: 2px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .layout-card .card-content:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-glass);
+}
+
+[data-theme="dark"] .layout-card input:checked + .card-content {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--text-primary);
+}
+
+/* ─── Storage cards (.storage-card) ───────────────────────────────────────── */
+
+[data-theme="dark"] .storage-card .card-content {
+  border: 2px solid var(--border-default);
+  background: var(--bg-surface);
+  color: var(--text-secondary);
+}
+
+[data-theme="dark"] .storage-card input:checked + .card-content {
+  border-color: var(--accent);
+  background: var(--accent-soft-bg);
+  color: var(--accent-soft-text);
+  font-weight: var(--weight-semibold);
+}
+
+/* ─── Segmented options + facing buttons (legacy #006ebd active state) ────── */
+
+[data-theme="dark"] .seg-option input:checked + span {
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+[data-theme="dark"] .facing-btn input[type="radio"]:checked + span {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+[data-theme="dark"] .facing-btn span {
+  background: var(--bg-glass);
+  color: var(--text-secondary);
+  border-color: var(--border-default);
+}
+
+[data-theme="dark"] .facing-btn:hover span {
+  border-color: var(--accent);
+  color: var(--accent-soft-text);
+}
+
+/* ─── Copies +/- buttons ──────────────────────────────────────────────────── */
+
+[data-theme="dark"] .copies-btn {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+}
+
+[data-theme="dark"] .copies-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent-soft-text);
+}
+
+/* ─── Inline-styled links in feature-subtitle ─────────────────────────────── */
+
+[data-theme="dark"] .feature-subtitle a {
+  color: var(--accent-soft-text);
+}
+
+[data-theme="dark"] .feature-subtitle a:hover {
+  color: var(--text-primary);
+}
+
+/* ─── <select> dropdown options ───────────────────────────────────────────── */
+/* Browsers render the open dropdown popup natively; only background/color
+   on <option> are reliably honored. macOS / some browsers ignore these, but
+   on Chromium-based desktops they apply. */
+
+[data-theme="dark"] select.text-input option,
+[data-theme="dark"] select option {
+  background: var(--bg-surface);
+  color: var(--text-primary);
+}
+
+[data-theme="dark"] select.text-input option:checked,
+[data-theme="dark"] select option:checked {
+  background: var(--accent-soft-bg);
+  color: var(--text-primary);
+}
+
+/* ─── Hide device-diagnostic listings ─────────────────────────────────────── */
+/* The legacy admin populated <div>s with verbose camera/audio device dumps
+   ("4 mic(s) · 8 output(s) detected: ..."). Useful while debugging device
+   pickers; visual noise in normal use. */
+
+#vg-camera-diag,
+#vg-audio-diag {
+  display: none !important;
+}
