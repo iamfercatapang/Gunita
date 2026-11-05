@@ -64,5 +64,5 @@ CI runs lint, typecheck and build on every push and pull request to `main` and `
 
 - [x] Phase 1: Vite, TypeScript and Biome around the existing app
 - [x] Phase 2: move Drive, audio, devices, security, the live viewer and capture into `src/lib`
-- [ ] Phase 3: redesign on shared design tokens. Done so far: tokens, welcome screen, photo booth offer, done screen, admin dashboard, capture settings, the photo booth capture screens and the recording screens. Still to do: the live viewer.
+- [x] Phase 3: redesign every guest and admin screen on shared design tokens: welcome, photo booth, recording, done screen, admin dashboard and the live viewer
 - [ ] Phase 4: move the screens out of `app.js` into React
