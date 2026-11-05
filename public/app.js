@@ -2060,34 +2060,35 @@ $(document).ready(function() {
     });
 
     /**
-     * Close the microphone as soon as a recording is finished, before the
-     * preview plays. While a Bluetooth headset mic (e.g. a DJI Mic paired over
-     * Bluetooth) is open, iPadOS and Android keep audio in "call" mode and send
-     * playback to the headset, so the guest hears nothing from the iPad's
-     * speaker or a Bluetooth speaker. Video tracks stay live for the photo
-     * booth offer; the full stream is still released on the welcome screen
-     * and re-opened for the next guest.
+     * Close the camera and microphone as soon as a recording is finished,
+     * before the preview plays.
+     *
+     * Mic: while a Bluetooth headset mic (e.g. a DJI Mic paired over
+     * Bluetooth) is open, iPadOS and Android keep audio in "call" mode and
+     * send playback to the headset, so the guest hears nothing from the
+     * iPad's speaker or a Bluetooth speaker.
+     * Camera: nothing needs it during the preview, the photo booth offer or
+     * the Done screen, and the recording light goes off as soon as the guest
+     * is done. If they accept the photo booth offer, the camera is re-opened
+     * (video only) for it.
+     *
+     * The photo booth offer's frozen-frame backdrop is painted from the live
+     * camera first, since the feed is blank once the camera is closed.
      */
-    function _releaseVgMic() {
+    function _releaseVgCapture() {
+        _paintVgPbOfferBackdrop();
         window.PB.audio.stopMicMonitor();
-        if (!currentStream) return;
-        const audioTracks = currentStream.getAudioTracks();
-        if (audioTracks.length === 0) return;
-        audioTracks.forEach(track => {
-            try { track.stop(); } catch (e) {}
-        });
-        const videoTracks = currentStream.getVideoTracks().filter(t => t.readyState === 'live');
-        currentStream = videoTracks.length > 0 ? new MediaStream(videoTracks) : null;
+        window.PB.capture.camera.release();
     }
 
     async function saveVgVideo(blob, ext) {
         // Stop canvas compositing if it was active
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
 
-        // The recorder has finished (we're called from its onstop), so the mic
-        // is no longer needed. Release it now so the preview plays through the
-        // speaker rather than a Bluetooth mic.
-        _releaseVgMic();
+        // The recorder has finished (we're called from its onstop), so the
+        // camera and mic are no longer needed. Release them now so the preview
+        // plays through the speaker rather than a Bluetooth mic.
+        _releaseVgCapture();
 
         // Same generator as the photo path, with a guestbook-flavoured prefix
         // when no event name is configured.
@@ -2141,16 +2142,15 @@ $(document).ready(function() {
             const wantsPb = await showVgPbOffer();
             if (wantsPb) {
                 $('#vg-booth').hide();
-                if (currentStream) {
-                    // VG may include microphone audio; disable it before PB capture.
-                    const videoTracks = currentStream.getVideoTracks().filter(t => t.readyState === 'live');
-                    const audioTracks = currentStream.getAudioTracks();
-                    audioTracks.forEach(track => {
-                        try { track.stop(); } catch (e) {}
-                    });
-                    if (videoTracks.length > 0) {
-                        currentStream = new MediaStream(videoTracks);
-                    }
+                // The camera was released when the recording stopped
+                // (_releaseVgCapture); re-open it, video only, on the same
+                // camera the guest just used.
+                try {
+                    await window.PB.capture.camera.acquireVideoOnly(appConfig.vgSelectedCameraId || '');
+                } catch (err) {
+                    console.error('[VG→PB] Could not re-open the camera for the photo booth:', err);
+                    _showCameraLost();
+                    return;
                 }
                 const pbFeedEl = $('#camera-feed')[0];
                 if (pbFeedEl && currentStream) {

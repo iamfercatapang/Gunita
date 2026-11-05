@@ -67,6 +67,24 @@ export class VgCameraManager {
   }
 
   /**
+   * Open the camera without a mic, for the photo booth after a guestbook
+   * recording. The recording flow releases camera and mic as soon as the
+   * guest stops (so playback isn't routed to a Bluetooth mic), and this
+   * re-opens just the camera if they accept the photo booth offer.
+   */
+  async acquireVideoOnly(cameraId: string): Promise<MediaStream> {
+    this.stopExisting();
+    const videoConstraints: MediaTrackConstraints = { ...VIDEO_CONSTRAINTS };
+    if (cameraId) {
+      videoConstraints.deviceId = { exact: cameraId };
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+    window.currentStream = stream;
+    this.attachTrackWatchdog(stream);
+    return stream;
+  }
+
+  /**
    * Stop every track and clear the viewfinder element. Safe to call repeatedly.
    * Called between recording sessions to extinguish the OS recording indicator.
    */
