@@ -1188,6 +1188,7 @@ $(document).ready(function() {
         // Show the camera feed element
         $('#camera-feed').show();
         $('#processing-overlay').hide();
+        $('#pb-shot-counter, #pb-review-badge').hide();
         $('#live-booth').hide();
         $('#vg-booth').hide();
 
@@ -1332,8 +1333,8 @@ $(document).ready(function() {
                 const def = LAYOUT_DEFS[appConfig.layout] || LAYOUT_DEFS['4x6-1'];
                 const photoCount = def.cols * def.rows;
                 const subMsg = photoCount === 1
-                    ? 'You\'ve got <strong>1 shot</strong> — make it amazing! Strike your best pose and have fun! 🤩'
-                    : 'You\'ll take <strong>' + photoCount + ' photos</strong> — warm up, get creative, and show us your best side! ✨';
+                    ? 'You\'ve got <strong>1 shot</strong>. Strike your best pose and have fun!'
+                    : 'You\'ll take <strong>' + photoCount + ' photos</strong>. Warm up, get creative, and show us your best side!';
                 document.getElementById('pb-splash-sub').innerHTML = subMsg;
                 const pbSplashEl = document.getElementById('pb-splash');
                 pbSplashEl.classList.remove('splash-fade-out');
@@ -1368,7 +1369,13 @@ $(document).ready(function() {
             }
 
             // --- DYNAMIC SEQUENCE LOOP ---
+            // Multi-photo layouts show "Photo N of M" so guests know where they are.
+            const shotCounter = document.getElementById('pb-shot-counter');
             for (let i = 0; i < photoSlots.length; i++) {
+                if (photoSlots.length > 1) {
+                    shotCounter.textContent = 'Photo ' + (i + 1) + ' of ' + photoSlots.length;
+                    shotCounter.style.display = '';
+                }
                 let waitTime = (i === 0) ? appConfig.countdownFirst : appConfig.countdownOthers;
                 await runCountdown(waitTime);
                 triggerFlash();
@@ -1376,6 +1383,7 @@ $(document).ready(function() {
                 const slot = photoSlots[i];
                 await drawPhoto(stripCtx, video, slot.x, slot.y, slot.w, slot.h);
             }
+            shotCounter.style.display = 'none';
 
             previewCanvas.width = cWidth;
             previewCanvas.height = cHeight;
@@ -2495,6 +2503,7 @@ $(document).ready(function() {
         }
 
         $('#processing-overlay').fadeOut(200);
+        $('#pb-review-badge').css('display', '');
 
         const previewMs = Math.max(appConfig.reviewTime * 1000, 1000);
         setTimeout(async () => {
@@ -2507,7 +2516,7 @@ $(document).ready(function() {
             if (wantsDoneScreen) {
                 await showVgDoneScreen();
             }
-            $('#processing-overlay h2').text('Processing...');
+            $('#processing-overlay h2').text('Saving your photos…');
             $('.spinner').show();
             resetToWelcomeScreen();
         }, previewMs);

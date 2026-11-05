@@ -1271,19 +1271,28 @@
                 <div id="countdown-overlay" style="display:none;"></div>
                 <div id="flash-overlay" style="display:none;"></div>
 
+                <!-- Which shot of a multi-photo layout is next (Phase 3g) -->
+                <div id="pb-shot-counter" role="status" aria-live="polite" style="display:none;"></div>
+
+                <!-- Shown over the finished strip during the review hold (Phase 3g) -->
+                <div id="pb-review-badge" role="status" style="display:none;">
+                    <i class="fa-solid fa-check" aria-hidden="true"></i>
+                    <span>Looking great!</span>
+                </div>
+
                 <!-- Splash screen shown before the photo session countdown begins -->
                 <div id="pb-splash" style="display:none;">
-                    <div class="pb-splash-icon"><i class="fa-solid fa-camera-retro"></i></div>
+                    <div class="pb-splash-icon" aria-hidden="true"><i class="fa-solid fa-camera-retro"></i></div>
                     <p class="pb-splash-heading">Show Your Best Pose!</p>
-                    <p class="pb-splash-sub" id="pb-splash-sub">Get ready &mdash; your photo session is about to begin. Take a deep breath and smile!</p>
+                    <p class="pb-splash-sub" id="pb-splash-sub">Your photo session is about to begin. Take a deep breath and smile!</p>
                     <div class="pb-splash-dots">
                         <span></span><span></span><span></span>
                     </div>
                 </div>
 
-                <div id="processing-overlay" style="display:none;">
-                    <div class="spinner"></div>
-                    <h2>Processing...</h2>
+                <div id="processing-overlay" role="status" style="display:none;">
+                    <div class="spinner" aria-hidden="true"></div>
+                    <h2>Saving your photos…</h2>
                 </div>
             </div>
         </div>
