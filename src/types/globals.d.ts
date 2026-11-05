@@ -28,6 +28,7 @@ declare global {
     // Application config (mutated by admin UI)
     appConfig: AppConfig;
     saveConfig: () => void;
+    _scheduleSave: () => void;
 
     // Session helpers
     generateSessionId: () => string;
