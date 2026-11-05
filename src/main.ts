@@ -48,10 +48,13 @@ import { AudioController } from './lib/audio';
 import {
   VgCameraManager,
   computeLayout,
+  deviceStore,
   downloadBlob,
   drawCoverFrame,
   drawPhoto,
+  logTrackSize,
   makeFilename,
+  photoConstraintsForSlot,
   saveBlobLocally,
 } from './lib/capture';
 import { DeviceManager } from './lib/devices';
@@ -218,12 +221,15 @@ window.PB.security = kioskSecurity;
 window.PB.liveViewer = { host: liveViewerHost };
 window.PB.capture = {
   camera: vgCameraManager,
+  photoConstraintsForSlot,
+  logTrackSize,
   computeLayout,
   drawPhoto,
   drawCoverFrame,
   makeFilename,
   saveBlobLocally,
   downloadBlob,
+  deviceStore,
 };
 
 // Viewer mode auto-boots when the URL has `?viewer=<id>`; no-op otherwise.

@@ -5,7 +5,13 @@
 
 import type { LayoutDef, PaperSize, PromptTemplates } from '../constants';
 import type { AudioController } from '../lib/audio';
-import type { ComputedLayout, LocalSaveDeps, VgCameraManager } from '../lib/capture';
+import type {
+  ComputedLayout,
+  LocalSaveDeps,
+  LocalSaveTarget,
+  VgCameraManager,
+  deviceStore,
+} from '../lib/capture';
 import type { DeviceManager } from '../lib/devices';
 import type { DriveClient } from '../lib/drive';
 import type { LiveViewerHost } from '../lib/live-viewer';
@@ -57,6 +63,8 @@ declare global {
       };
       capture: {
         camera: VgCameraManager;
+        photoConstraintsForSlot: (slotW: number, slotH: number) => MediaTrackConstraints;
+        logTrackSize: (label: string, stream: MediaStream) => void;
         computeLayout: (def: LayoutDef) => ComputedLayout;
         drawPhoto: (
           ctx: CanvasRenderingContext2D,
@@ -79,8 +87,13 @@ declare global {
           opts?: { mirror?: boolean },
         ) => void;
         makeFilename: (eventName: string, ext?: string) => string;
-        saveBlobLocally: (blob: Blob, filename: string, deps: LocalSaveDeps) => Promise<void>;
+        saveBlobLocally: (
+          blob: Blob,
+          filename: string,
+          deps: LocalSaveDeps,
+        ) => Promise<LocalSaveTarget>;
         downloadBlob: (blob: Blob, filename: string) => void;
+        deviceStore: typeof deviceStore;
       };
     };
   }

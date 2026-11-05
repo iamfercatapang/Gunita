@@ -714,6 +714,87 @@ $(document).ready(function() {
         }
     });
 
+    // ── On-device saves (iPad / iPhone) ──────────────────────────────────────
+    // Safari on iOS/iPadOS has no folder picker, so captures are kept in the
+    // app's own storage (window.PB.capture.deviceStore) and exported from the
+    // Local Folder box. Other browsers never show this box.
+    const _ds = window.PB.capture.deviceStore;
+    // The next export batch is loaded ahead of time: iOS only opens the share
+    // sheet when navigator.share() runs straight from the tap.
+    let _dsBatch = { ids: [], files: [] };
+
+    function _fmtBytes(n) {
+        if (n == null) return '–';
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
+        if (n >= 1e6) return Math.round(n / 1e6) + ' MB';
+        return Math.max(1, Math.round(n / 1e3)) + ' KB';
+    }
+
+    async function refreshDeviceStore() {
+        if (!_ds.shouldUseDeviceStore()) return;
+        try {
+            const s = await _ds.summary();
+            _dsBatch = await _ds.nextExportBatch();
+            $('#ds-pending').text(s.pending);
+            $('#ds-exported').text(s.exported);
+            $('#ds-used').text(_fmtBytes(s.bytes));
+            $('#ds-free').text(_fmtBytes(s.freeBytes));
+            const n = _dsBatch.files.length;
+            $('#btn-ds-export')
+                .prop('disabled', n === 0)
+                .text(n === 0 ? 'Nothing to export'
+                    : s.pending > n ? `Export next ${n} of ${s.pending}`
+                    : `Export ${n} file${n === 1 ? '' : 's'}`);
+            $('#btn-ds-clear')
+                .prop('disabled', s.exported === 0)
+                .text(s.exported ? `Clear ${s.exported} exported` : 'Clear exported');
+            $('#ds-persist-note')
+                .toggle(s.persisted === false)
+                .text('Add Gunita to the Home Screen (Share → Add to Home Screen) and run it from there, so iPadOS keeps these files until you export them.');
+        } catch (err) {
+            console.warn('[DeviceStore] Could not read saved captures:', err);
+        }
+    }
+
+    if (_ds.shouldUseDeviceStore()) {
+        $('#local-folder-picker').hide();
+        $('#device-store-box').show();
+        $('#lbl-vg-save-local .save-dest-title').text('On this device');
+        refreshDeviceStore();
+        // Captures happen in kiosk mode; refresh whenever the admin comes back.
+        $(document).on('click', '.nav-item', refreshDeviceStore);
+    }
+
+    $('#btn-ds-export').on('click', function() {
+        const btn = $(this);
+        btn.prop('disabled', true);
+        // No await before exportBatch(): it calls navigator.share() first thing.
+        _ds.exportBatch(_dsBatch).then(function(r) {
+            if (r.status === 'shared' || r.status === 'downloaded') {
+                const verb = r.status === 'shared' ? 'Exported' : 'Downloaded';
+                $('#ds-message').text(`${verb} ${r.count} file${r.count === 1 ? '' : 's'}.` +
+                    (r.remaining ? ` ${r.remaining} still to export: tap Export again.` : ' Everything is exported.'));
+            } else if (r.status === 'cancelled') {
+                $('#ds-message').text('Export cancelled. Nothing was marked as exported.');
+            }
+        }).catch(function(err) {
+            console.error('[DeviceStore] Export failed:', err);
+            $('#ds-message').text('Export failed: ' + (err.message || err.name) + '. Your files are still saved on this device.');
+        }).finally(refreshDeviceStore);
+    });
+
+    $('#btn-ds-clear').on('click', async function() {
+        const count = $('#ds-exported').text();
+        if (!confirm(`Delete ${count} exported file(s) from this device? Make sure they arrived in Files or Photos first. Files you haven't exported are kept.`)) return;
+        try {
+            const removed = await _ds.clearExported();
+            $('#ds-message').text(`Cleared ${removed} exported file${removed === 1 ? '' : 's'}.`);
+        } catch (err) {
+            $('#ds-message').text('Could not clear files: ' + (err.message || err.name));
+        }
+        refreshDeviceStore();
+    });
+
     // Populate VG camera and audio device lists on load
     window.PB.devices.populateCameraList('vg');
     window.PB.devices.populateAudioDeviceList();
@@ -840,11 +921,12 @@ $(document).ready(function() {
                 resetToWelcomeScreen();
             } else {
                 // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
-                const videoConstraints = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+                const videoConstraints = _pbPhotoConstraints();
                 if (appConfig.selectedCameraId) {
                     videoConstraints.deviceId = { exact: appConfig.selectedCameraId };
                 }
                 currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+                window.PB.capture.logTrackSize('[PB] Photo camera', currentStream);
                 $('#camera-feed')[0].srcObject = currentStream;
                 applyKioskViewfinderSize();
 
@@ -1403,6 +1485,14 @@ $(document).ready(function() {
     function computeLayout() {
         const def = LAYOUT_DEFS[appConfig.layout] || LAYOUT_DEFS['4x6-1'];
         return window.PB.capture.computeLayout(def);
+    }
+
+    // Camera constraints for photo-booth stills, matched to the chosen
+    // layout's slot shape: 4:3 for portrait/square slots, 16:9 for wide ones,
+    // at the largest size the camera offers. Less of the frame is cropped.
+    function _pbPhotoConstraints() {
+        const slot = computeLayout().photoSlots[0];
+        return window.PB.capture.photoConstraintsForSlot(slot.w, slot.h);
     }
 
     // ==================== VIDEO GUESTBOOK ====================
@@ -1978,9 +2068,36 @@ $(document).ready(function() {
         triggerVgSequence({ continueSession: true, promptText: _vgActivePromptText });
     });
 
+    /**
+     * Close the camera and microphone as soon as a recording is finished,
+     * before the preview plays.
+     *
+     * Mic: while a Bluetooth headset mic (e.g. a DJI Mic paired over
+     * Bluetooth) is open, iPadOS and Android keep audio in "call" mode and
+     * send playback to the headset, so the guest hears nothing from the
+     * iPad's speaker or a Bluetooth speaker.
+     * Camera: nothing needs it during the preview, the photo booth offer or
+     * the Done screen, and the recording light goes off as soon as the guest
+     * is done. If they accept the photo booth offer, the camera is re-opened
+     * (video only) for it.
+     *
+     * The photo booth offer's frozen-frame backdrop is painted from the live
+     * camera first, since the feed is blank once the camera is closed.
+     */
+    function _releaseVgCapture() {
+        _paintVgPbOfferBackdrop();
+        window.PB.audio.stopMicMonitor();
+        window.PB.capture.camera.release();
+    }
+
     async function saveVgVideo(blob, ext) {
         // Stop canvas compositing if it was active
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
+
+        // The recorder has finished (we're called from its onstop), so the
+        // camera and mic are no longer needed. Release them now so the preview
+        // plays through the speaker rather than a Bluetooth mic.
+        _releaseVgCapture();
 
         // Same generator as the photo path, with a guestbook-flavoured prefix
         // when no event name is configured.
@@ -2034,16 +2151,18 @@ $(document).ready(function() {
             const wantsPb = await showVgPbOffer();
             if (wantsPb) {
                 $('#vg-booth').hide();
-                if (currentStream) {
-                    // VG may include microphone audio; disable it before PB capture.
-                    const videoTracks = currentStream.getVideoTracks().filter(t => t.readyState === 'live');
-                    const audioTracks = currentStream.getAudioTracks();
-                    audioTracks.forEach(track => {
-                        try { track.stop(); } catch (e) {}
-                    });
-                    if (videoTracks.length > 0) {
-                        currentStream = new MediaStream(videoTracks);
-                    }
+                // The camera was released when the recording stopped
+                // (_releaseVgCapture); re-open it, video only, on the same
+                // camera the guest just used.
+                try {
+                    await window.PB.capture.camera.acquirePhotoCamera(
+                        appConfig.vgSelectedCameraId || '',
+                        _pbPhotoConstraints()
+                    );
+                } catch (err) {
+                    console.error('[VG→PB] Could not re-open the camera for the photo booth:', err);
+                    _showCameraLost();
+                    return;
                 }
                 const pbFeedEl = $('#camera-feed')[0];
                 if (pbFeedEl && currentStream) {
