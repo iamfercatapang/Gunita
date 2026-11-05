@@ -2059,9 +2059,35 @@ $(document).ready(function() {
         triggerVgSequence({ continueSession: true, promptText: _vgActivePromptText });
     });
 
+    /**
+     * Close the microphone as soon as a recording is finished, before the
+     * preview plays. While a Bluetooth headset mic (e.g. a DJI Mic paired over
+     * Bluetooth) is open, iPadOS and Android keep audio in "call" mode and send
+     * playback to the headset, so the guest hears nothing from the iPad's
+     * speaker or a Bluetooth speaker. Video tracks stay live for the photo
+     * booth offer; the full stream is still released on the welcome screen
+     * and re-opened for the next guest.
+     */
+    function _releaseVgMic() {
+        window.PB.audio.stopMicMonitor();
+        if (!currentStream) return;
+        const audioTracks = currentStream.getAudioTracks();
+        if (audioTracks.length === 0) return;
+        audioTracks.forEach(track => {
+            try { track.stop(); } catch (e) {}
+        });
+        const videoTracks = currentStream.getVideoTracks().filter(t => t.readyState === 'live');
+        currentStream = videoTracks.length > 0 ? new MediaStream(videoTracks) : null;
+    }
+
     async function saveVgVideo(blob, ext) {
         // Stop canvas compositing if it was active
         if (_vgFrameAnimId) { cancelAnimationFrame(_vgFrameAnimId); _vgFrameAnimId = null; }
+
+        // The recorder has finished (we're called from its onstop), so the mic
+        // is no longer needed. Release it now so the preview plays through the
+        // speaker rather than a Bluetooth mic.
+        _releaseVgMic();
 
         // Same generator as the photo path, with a guestbook-flavoured prefix
         // when no event name is configured.
