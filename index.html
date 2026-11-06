@@ -1176,46 +1176,9 @@
     </div>
 
     <!-- ========== VIEWER MODE (Device 2 full-screen gallery) ========== -->
-    <!-- Styled in src/styles/live-viewer.css (Phase 3i). -->
-    <div id="viewer-mode" data-theme="dark" style="display:none;">
-        <div id="viewer-header">
-            <div class="viewer-heading">
-                <h2>Live Gallery</h2>
-                <p id="viewer-event-name">Waiting for the first capture…</p>
-            </div>
-            <div class="viewer-status" role="status">
-                <div class="lv-status-dot" id="viewer-status-dot" data-state="connecting" aria-hidden="true"></div>
-                <span id="viewer-status-text">Connecting…</span>
-            </div>
-        </div>
-        <div id="viewer-gallery"></div>
-        <div id="viewer-empty">
-            <div class="viewer-empty-icon" aria-hidden="true">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            </div>
-            <p class="viewer-empty-title">No captures yet</p>
-            <p class="viewer-empty-sub">Photos and videos will appear here as guests take them.</p>
-        </div>
-        <!-- Viewer lightbox (fullscreen item expand + Drive QR) -->
-        <div id="viewer-lightbox" role="dialog" aria-modal="true" aria-label="Capture" style="display:none;">
-            <button id="viewer-lb-close" aria-label="Close">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-            <!-- Photo / video thumbnail view -->
-            <img id="viewer-lb-img" src="" alt="" style="display:none;">
-            <!-- Note shown when video has no Drive link (can't stream the blob to viewer) -->
-            <div id="viewer-lb-video-note" style="display:none;">
-                <p>Video preview only. The recording stays on the host device.</p>
-                <p class="viewer-lb-hint">Turn on <strong>Google Drive</strong> on the host to get a QR code for playback.</p>
-            </div>
-            <!-- Drive QR view -->
-            <div id="viewer-lb-qr-wrap" style="display:none;">
-                <p>Scan to open and play from Google Drive</p>
-                <div id="viewer-lb-qr"></div>
-                <p id="viewer-lb-drive-url"></p>
-            </div>
-        </div>
-    </div>
+    <!-- Rendered by React (src/screens/live-viewer) when the URL has ?viewer=<id>.
+         Styled in src/styles/live-viewer.css. -->
+    <div id="viewer-mode" data-theme="dark" style="display:none;"></div>
 
     <!-- ========== KIOSK MODE ========== -->
     <div id="kiosk-mode" data-theme="dark" style="display:none;">

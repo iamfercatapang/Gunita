@@ -3,11 +3,11 @@
  * =============================================================================
  *
  * The phone page hosts open from the QR code (`?viewer=<peerId>`), built by
- * src/lib/live-viewer/viewer.ts. Moves it from the old slate-blue palette to
+ * src/screens/live-viewer (React). Moves it from the old slate-blue palette to
  * Gunita's graphite + teal tokens; every inline style now lives here.
  *
  *   - #viewer-header     title, event line, connection status
- *   - #viewer-gallery    capture cards (.viewer-item, built in viewer.ts)
+ *   - #viewer-gallery    capture cards (.viewer-item, rendered by ViewerCard.tsx)
  *   - #viewer-empty      empty state
  *   - #viewer-lightbox   photo view, video note, Drive QR
  *
@@ -78,7 +78,7 @@
   color: var(--text-secondary);
 }
 
-/* Colour follows data-state, set by viewer.ts; the text beside it says the
+/* Colour follows data-state, set by ViewerApp.tsx; the text beside it says the
    same thing, so colour is never the only signal. */
 #viewer-mode #viewer-status-dot {
   width: 8px;
@@ -125,6 +125,14 @@
 }
 
 #viewer-mode .viewer-item-media {
+  /* A <button>: drop the UA button look. */
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   position: relative;
   aspect-ratio: 4 / 3;
   overflow: hidden;
