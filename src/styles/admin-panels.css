@@ -1,0 +1,518 @@
+/* =============================================================================
+ * Admin panels (Phase 4e, src/screens/admin)
+ * =============================================================================
+ *
+ * The inline styles the admin markup used to carry, as classes. Sizes and
+ * spacing are the same; the greys use the theme tokens that admin.css used to
+ * force onto the inline colours:
+ *   #374151 → --text-primary      #6b7280 → --text-secondary
+ *   #9ca3af → --text-muted        #e5e7eb → --border-default
+ *   #f3f4f6 → --border-subtle     #f9fafb → --bg-glass
+ * ============================================================================= */
+
+/* ─── Text ────────────────────────────────────────────────────────────────── */
+
+.admin-panel-lead {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin: 0.25rem 0 0;
+}
+
+.admin-lead {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-lead.admin-lead-tight {
+  margin-bottom: 1rem;
+}
+
+.admin-lead-sm {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0 0 0.9rem;
+}
+
+.admin-body-text {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+.admin-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.admin-hint.admin-hint-spaced {
+  margin-top: 0.6rem;
+}
+
+.admin-hint.admin-hint-tight {
+  margin-top: 0.4rem;
+}
+
+.admin-hint.admin-hint-below {
+  margin-top: 0.5rem;
+}
+
+.admin-note-sm {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.admin-note-sm strong {
+  color: var(--text-secondary);
+}
+
+.admin-note-icon {
+  margin-right: 0.35rem;
+}
+
+.admin-warn-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #d97706;
+  font-weight: 500;
+}
+
+.admin-error {
+  margin-top: 0.75rem;
+  color: #dc2626;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.admin-label-aside {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+/* ─── Fields ──────────────────────────────────────────────────────────────── */
+
+.admin-field-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-field-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  margin: 0 0 0.35rem;
+}
+
+.admin-field-label.admin-field-label-spaced {
+  margin-bottom: 0.6rem;
+}
+
+.admin-input-md,
+.admin-input-lg,
+.admin-input-addr {
+  width: 100%;
+}
+
+.admin-input-md {
+  max-width: 420px;
+}
+
+.admin-input-lg {
+  max-width: 520px;
+}
+
+.admin-input-addr {
+  max-width: 360px;
+}
+
+.admin-disclaimer-text {
+  width: 100%;
+  resize: vertical;
+  font-size: 0.83rem;
+  line-height: 1.6;
+}
+
+.admin-subcard {
+  margin-top: 0.5rem;
+  padding: 1.25rem 1.5rem;
+}
+
+.admin-reveal {
+  margin-top: 0.75rem;
+}
+
+.admin-card-compact {
+  padding: 1.25rem 1.5rem;
+}
+
+.admin-card-roomy {
+  padding: 1.5rem;
+}
+
+.admin-preview-card {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.admin-layout-card {
+  padding: 1rem;
+  margin-bottom: 0;
+}
+
+.admin-grant-btn {
+  align-self: flex-start;
+}
+
+/* The PIN form sits in a flex column card body; let its fields join it. */
+.admin-pin-form {
+  display: contents;
+}
+
+.kiosk-pin-feedback.is-error {
+  color: #dc2626;
+}
+
+.kiosk-pin-feedback.is-ok {
+  color: #16a34a;
+}
+
+.kiosk-pin-feedback.is-info {
+  color: var(--text-secondary);
+}
+
+/* ─── Welcome designer tools ──────────────────────────────────────────────── */
+
+/* Same look as `.tool-group label` (styles.css, admin.css). */
+.tool-group .admin-tool-label {
+  display: block;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.admin-tool-group-divided {
+  border-top: 1px solid var(--border-default);
+  padding-top: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+.admin-tool-field {
+  margin-bottom: 0.75rem;
+}
+
+.tool-group .admin-tool-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+/* ─── Upload zones ────────────────────────────────────────────────────────── */
+
+.admin-drop {
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.admin-drop-icon {
+  font-size: 2rem;
+}
+
+.admin-drop-title {
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.admin-drop-sub {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.admin-choose-file {
+  position: relative;
+  overflow: hidden;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.admin-media-filled {
+  padding: 0.75rem;
+}
+
+.admin-media-thumb {
+  width: 100%;
+  border-radius: 6px;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
+.admin-media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.admin-media-remove {
+  width: 100%;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.admin-overlay-thumb {
+  width: 100%;
+  border-radius: 6px;
+  display: block;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  background: #111;
+}
+
+.admin-overlay-filename {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.admin-overlay-note {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* ─── Prompt pool ─────────────────────────────────────────────────────────── */
+
+.admin-prompt-pool {
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-prompt-pool-head {
+  padding: 0.7rem 1rem 0.55rem;
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-prompt-pool-head > span {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--text-primary);
+}
+
+#vg-prompts-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+#vg-prompts-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.admin-prompt-pool-add {
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.admin-prompt-pool-add input {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-prompt-pool-add button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ─── Live Gallery Viewer ─────────────────────────────────────────────────── */
+
+.admin-steps {
+  flex-direction: column;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.admin-steps p {
+  margin: 0;
+}
+
+.info-box.admin-steps .admin-steps-note {
+  color: #d97706;
+}
+
+.lv-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+#lv-status-text {
+  font-weight: 600;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+#btn-lv-stop {
+  margin-left: auto;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.85rem;
+}
+
+.lv-active-body {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+#lv-qr-container {
+  width: 180px;
+  height: 180px;
+  background: #fff;
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lv-qr-caption {
+  margin: 0.6rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.lv-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.lv-url-label {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.35rem;
+}
+
+#lv-viewer-url {
+  font-family: monospace;
+  font-size: 0.8rem;
+  word-break: break-all;
+  color: var(--text-primary);
+  background: var(--bg-glass);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.lv-stat {
+  margin-top: 1rem;
+}
+
+.lv-stat.lv-stat-tight {
+  margin-top: 0.5rem;
+}
+
+.lv-stat span {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.lv-start-btn {
+  padding: 0.85rem 2.5rem;
+  font-size: 1rem;
+}
+
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+
+.launch-btn {
+  padding: 0.6rem;
+  font-size: 0.9rem;
+}
+
+#camera-error-card {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  color: #dc2626;
+}
+
+#camera-error-msg {
+  margin: 0.3rem 0 0.5rem;
+  color: #991b1b;
+  line-height: 1.4;
+}
+
+#btn-camera-error-close {
+  font-size: 0.78rem;
+  color: #dc2626;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+
+/* ─── Capture settings ────────────────────────────────────────────────────── */
+
+/* Device listings (hidden by admin.css; kept for debugging). */
+.device-diag-line {
+  display: block;
+}
+
+.device-diag-list {
+  display: block;
+  margin-top: 2px;
+}
+
+.device-diag-title {
+  font-weight: 600;
+}
+
+.device-diag-muted {
+  color: var(--text-muted);
+}
+
+.device-diag-warn {
+  display: block;
+  color: #dc2626;
+}
+
+.device-diag-nolabel {
+  color: #f59e0b;
+}
+
+.drive-status-error {
+  color: #dc2626;
+}
+
+/* <output> is inline; the device store message is a paragraph. */
+.admin-output-block {
+  display: block;
+}

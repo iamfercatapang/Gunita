@@ -37,6 +37,7 @@ import './styles/welcome.css';
 import './styles/pb-offer.css';
 import './styles/done-screen.css';
 import './styles/admin.css';
+import './styles/admin-panels.css';
 import './styles/pb-capture.css';
 import './styles/vg-recording.css';
 import './styles/live-viewer.css';
@@ -64,11 +65,13 @@ import {
 import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
 import { LiveViewerHost } from './lib/live-viewer';
-import { renderQr } from './lib/qr';
 import { KioskSecurity } from './lib/security';
 import './state/app-state';
+import './state/settings';
 import { freezeFrame } from './screens/guest-flow/freeze-frame';
 import { addCapture, captureCount, setDriveUrl } from './state/captures';
+import { setLiveViewerStatus } from './state/live-viewer-status';
+import { enabledPrompts } from './state/prompts';
 
 // Expose bundled vendor libs as globals for the legacy app.js.
 window.$ = jQueryLib;
@@ -81,14 +84,8 @@ window.Peer = Peer;
 // Guestbook; this client formalises that.
 const driveClient = new DriveClient({
   getClientId(): string {
-    // Priority: VG client-id input → PB client-id input → appConfig override → env constant
-    const vgInput = (
-      document.getElementById('vg-drive-client-id') as HTMLInputElement | null
-    )?.value.trim();
-    const pbInput = (
-      document.getElementById('drive-client-id') as HTMLInputElement | null
-    )?.value.trim();
-    return vgInput || pbInput || window.appConfig.vgDriveClientId || GOOGLE_DRIVE_CLIENT_ID;
+    // The host's own client id (Capture Settings → Google Drive), else the built-in one.
+    return window.appConfig.vgDriveClientId || GOOGLE_DRIVE_CLIENT_ID;
   },
   getPbFolderName(): string {
     return window.appConfig.driveFolderName || 'Photo Booth Captures';
@@ -140,46 +137,22 @@ const deviceManager = new DeviceManager({
 const kioskSecurity = new KioskSecurity();
 
 // ─── LiveViewerHost instance ─────────────────────────────────────────────────
-// PeerJS-based broadcaster. Idle until start() is called by the admin button.
-// QR rendering uses the globally vendored qrcode.min.js (loaded by index.html).
-function setText(id: string, text: string): void {
-  const el = document.getElementById(id);
-  if (el) el.textContent = text;
-}
-function setVisible(id: string, visible: boolean): void {
-  const el = document.getElementById(id);
-  if (el) el.style.display = visible ? '' : 'none';
-}
-function paintQr(targetId: string, text: string): void {
-  const target = document.getElementById(targetId);
-  if (target) renderQr(target, text, { size: 164, dark: '#1e293b', light: '#ffffff' });
-}
-
+// PeerJS-based broadcaster. Idle until start() is called from the admin panel,
+// which renders what the host reports (src/state/live-viewer-status.ts).
 const liveViewerHost = new LiveViewerHost(
   {
     getEventName: () => window.appConfig.eventName || '',
     getNetworkAddr: () => window.appConfig.lvNetworkAddr || '',
   },
   {
-    setViewerUrl: (url) => setText('lv-viewer-url', url),
-    setQrTarget: (text) => paintQr('lv-qr-container', text),
-    setStatus: (text, isConnected) => {
-      setText('lv-status-text', text);
-      const dot = document.getElementById('lv-status-dot');
-      if (dot) dot.classList.toggle('lv-dot-on', isConnected);
-    },
-    setViewerCount: (n) => setText('lv-viewer-count', String(n)),
-    setSentCount: (n) => setText('lv-sent-count', String(n)),
-    showActive: () => {
-      setVisible('lv-idle-state', false);
-      setVisible('lv-active-state', true);
-    },
-    showIdle: () => {
-      setVisible('lv-active-state', false);
-      setVisible('lv-idle-state', true);
-      const qr = document.getElementById('lv-qr-container');
-      if (qr) qr.innerHTML = '';
-    },
+    setViewerUrl: (viewerUrl) => setLiveViewerStatus({ viewerUrl }),
+    // The QR code encodes the viewer URL, which the panel already has.
+    setQrTarget: () => {},
+    setStatus: (statusText, connected) => setLiveViewerStatus({ statusText, connected }),
+    setViewerCount: (viewers) => setLiveViewerStatus({ viewers }),
+    setSentCount: (sent) => setLiveViewerStatus({ sent }),
+    showActive: () => setLiveViewerStatus({ active: true }),
+    showIdle: () => setLiveViewerStatus({ active: false, viewerUrl: '' }),
   },
 );
 
@@ -214,15 +187,20 @@ window.PB.capture = {
 };
 
 window.PB.captures = { add: addCapture, setDriveUrl, count: captureCount };
+window.PB.prompts = { enabled: () => enabledPrompts(window.appConfig) };
 
-// React screens load as their own chunks. The galleries mount as soon as the
-// page is up (the dashboard shows one). Kiosk screens load on first use, or
-// earlier when app.js calls preload() as the kiosk launches, so opening one
-// never waits on the network.
+// React screens load as their own chunks. The admin dashboard, the welcome
+// screen and the kiosk's Recent Captures mount as soon as the page is up.
+// Other kiosk screens load on first use, or earlier when app.js calls
+// preload() as the kiosk launches, so opening one never waits on the network.
 const loadDialogs = () => import('./screens/dialogs');
 const loadGalleries = () => import('./screens/galleries');
 const loadGuestFlow = () => import('./screens/guest-flow');
+const loadAdmin = () => import('./screens/admin');
+const loadWelcome = () => import('./screens/welcome');
 if (!new URLSearchParams(window.location.search).has('viewer')) {
+  void loadAdmin().then((m) => m.mountAdmin());
+  void loadWelcome().then((m) => m.mountWelcome());
   void loadGalleries().then((m) => m.mountGalleries());
 }
 // The guest's last video frame, frozen when the camera is released, shown
@@ -235,6 +213,8 @@ window.PB.ui = {
   },
   askPin: (opts) => loadDialogs().then((m) => m.askPin(opts)),
   askDisclaimer: (opts) => loadDialogs().then((m) => m.askDisclaimer(opts)),
+  showWelcome: () => void loadWelcome().then((m) => m.showWelcome()),
+  hideWelcome: () => void loadWelcome().then((m) => m.hideWelcome()),
   showRecentCaptures: () => void loadGalleries().then((m) => m.showRecentCaptures()),
   freezeOfferBackdrop: (video) => {
     offerBackdrop = freezeFrame(video as HTMLVideoElement | null);
