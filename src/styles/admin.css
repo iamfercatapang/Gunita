@@ -438,12 +438,12 @@
   letter-spacing: var(--tracking-normal);
 }
 
-[data-theme="dark"] .gallery-section .gallery-header a {
+[data-theme="dark"] .gallery-section .gallery-header .gallery-view-all {
   color: var(--accent-soft-text);
   font-weight: var(--weight-semibold);
 }
 
-[data-theme="dark"] .gallery-section .gallery-header a:hover {
+[data-theme="dark"] .gallery-section .gallery-header .gallery-view-all:hover {
   color: var(--text-primary);
   text-decoration: underline;
 }

@@ -265,10 +265,6 @@ window.startNewSession = startNewSession;
 
 window.currentStream = null;
 window.directoryHandle = null;
-window.capturedPhotos = [];
-window.capturedPhotoDriveLinks = [];
-window.capturedVideos = [];
-window.capturedVideoDriveLinks = [];
 window.currentSessionId = null;
 window.currentSessionFolderId = null;
 window.currentSessionFolderLink = null;
