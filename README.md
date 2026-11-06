@@ -64,6 +64,7 @@ Gunita started as one big `app.js`. It's being moved to typed modules a piece at
   - `guest-flow/`: the "Take a photo too?" offer after a video, the done screen with the Drive QR code, and the prompts preview.
   - `admin/`: the whole admin dashboard, sidebar and settings panels. Launch Kiosk calls `window.PB.kiosk.launch()`, which `app.js` provides.
   - `welcome/`: the kiosk welcome screen. `app.js` shows and hides it with `window.PB.ui.showWelcome()` / `hideWelcome()`; starting a session and the exit button call `window.PB.kiosk`.
+  - `capture/`: the photo booth and video guestbook. `photo-session.ts` and `video-session.ts` run the sessions (countdowns, recording, saving, the preview and the photo offer); the screens render what they set in `store.ts`. `app.js` starts them with `window.PB.ui.startPhotoSession()` / `startVideoSession()`.
 
   React screens load as separate chunks after the page is up, so they never hold up the first paint.
 - `src/styles/`: design tokens (`tokens.css`, `themes.css`) and the redesigned screens.
@@ -81,5 +82,5 @@ CI runs lint, typecheck and build on every push and pull request to `main` and `
   - [x] 4c: galleries and the shared captures list
   - [x] 4d: photo booth offer, done screen and prompts preview
   - [x] 4e: the settings store, the admin dashboard and the welcome screen
-  - [ ] 4f: photo booth capture and video recording
-  - [ ] 4g: remove `app.js` and jQuery
+  - [x] 4f: photo booth capture and video recording
+  - [ ] 4g: move kiosk launch, exit and the PIN out of `app.js`, then remove it and jQuery

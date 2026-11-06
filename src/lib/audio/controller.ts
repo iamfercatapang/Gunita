@@ -4,8 +4,8 @@
 // state in the legacy app.js with one disposable instance that owns:
 //
 //   • Mic-level silence detection during a VG recording, with a small
-//     RMS-threshold + grace period to suppress flapping. Updates a DOM
-//     status badge (#vg-mic-badge) so the guest sees mic state at a glance.
+//     RMS-threshold + grace period to suppress flapping. Publishes the mic
+//     state (getMicBadge / subscribeMicBadge) for the recording screen's badge.
 //
 //   • A pre-wired Bluetooth sink: a hidden Audio element with setSinkId()
 //     applied to the chosen speaker, fed by a MediaStreamDestination. This
@@ -19,16 +19,10 @@
 //   • A one-shot speaker test that plays an 880 Hz tone on a specified
 //     sinkId; used by the admin "Test" button.
 //
-// The controller is intentionally DOM-aware (it touches the mic badge and
-// preview-video elements by ID) — the kiosk uses fixed IDs and the alternative
-// (passing element refs through every call site) costs more than it saves
-// while we still have a single legacy app.js consumer. When the React
-// migration in Phase 4 splits the kiosk into components, these IDs will
-// move into props.
+// The one DOM lookup left is the capture-review <video>, by ID: it has to be
+// routed into the Bluetooth sink once, at kiosk launch, so the recording
+// screen keeps it mounted for the life of the page.
 
-const MIC_BADGE_CONTAINER_ID = 'vg-mic-badge';
-const MIC_BADGE_ICON_ID = 'vg-mic-icon';
-const MIC_BADGE_LABEL_ID = 'vg-mic-label';
 const PREVIEW_VIDEO_ID = 'vg-preview-video';
 
 const SILENCE_THRESHOLD_RMS = 0.01;
@@ -48,6 +42,10 @@ export class AudioController {
   private micCtx: AudioContext | null = null;
   private micRaf: number | null = null;
   private micSilenceStart: number | null = null;
+
+  // null while not recording (no badge).
+  private micBadge: MicBadgeState | null = null;
+  private micBadgeListeners = new Set<() => void>();
 
   // ─── Beep / sink state ───────────────────────────────────────────────────
   private beepCtx: AudioContext | null = null;
@@ -137,29 +135,22 @@ export class AudioController {
       this.micCtx = null;
     }
     this.micSilenceStart = null;
-    const badge = document.getElementById(MIC_BADGE_CONTAINER_ID);
-    if (badge) badge.style.display = 'none';
+    this.setMicBadge(null);
   }
 
-  /** Set the mic badge UI directly (used by stream lifecycle code). */
-  setMicBadge(state: MicBadgeState): void {
-    const badge = document.getElementById(MIC_BADGE_CONTAINER_ID);
-    const icon = document.getElementById(MIC_BADGE_ICON_ID);
-    const label = document.getElementById(MIC_BADGE_LABEL_ID);
-    if (!badge || !icon || !label) return;
-    badge.style.display = 'flex';
-    badge.className = state === 'ok' ? 'mic-ok' : state === 'muted' ? 'mic-muted' : 'mic-none';
-    if (state === 'ok') {
-      icon.className = 'fa-solid fa-microphone';
-      label.textContent = 'Mic';
-    } else if (state === 'muted') {
-      icon.className = 'fa-solid fa-microphone-slash';
-      label.textContent = 'Muted';
-    } else {
-      icon.className = 'fa-solid fa-microphone-slash';
-      label.textContent = 'No mic';
-    }
+  /** The mic state while recording (null when not recording). */
+  setMicBadge(state: MicBadgeState | null): void {
+    if (this.micBadge === state) return;
+    this.micBadge = state;
+    for (const l of this.micBadgeListeners) l();
   }
+
+  getMicBadge = (): MicBadgeState | null => this.micBadge;
+
+  subscribeMicBadge = (listener: () => void): (() => void) => {
+    this.micBadgeListeners.add(listener);
+    return () => this.micBadgeListeners.delete(listener);
+  };
 
   // ─── Bluetooth sink pre-wiring ───────────────────────────────────────────
 
