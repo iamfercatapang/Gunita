@@ -57,7 +57,10 @@ Gunita started as one big `app.js`. It's being moved to typed modules a piece at
   - `capture/`: camera, frame compositing, saving files
 - `src/state/` and `src/constants/`: app settings and the photo layouts.
 - `src/screens/`: screens that have moved to React. Each renders into its container in `index.html` through `mountScreen` in `src/ui/mount.tsx`.
-  - `live-viewer/`: the hosts' phone gallery. It loads only for `?viewer=` links, so the kiosk doesn't download React yet.
+  - `live-viewer/`: the hosts' phone gallery, for `?viewer=` links.
+  - `dialogs/`: the kiosk's PIN pad and disclaimer. `app.js` opens them with `await window.PB.ui.askPin(...)` / `askDisclaimer(...)`.
+
+  React screens load as a separate chunk when first needed (the kiosk preloads it at launch), so the admin dashboard doesn't download React.
 - `src/styles/`: design tokens (`tokens.css`, `themes.css`) and the redesigned screens.
 
 CI runs lint, typecheck and build on every push and pull request to `main` and `Dev`. Pushes to `Dev` deploy to GitHub Pages.
@@ -69,4 +72,5 @@ CI runs lint, typecheck and build on every push and pull request to `main` and `
 - [x] Phase 3: redesign every guest and admin screen on shared design tokens: welcome, photo booth, recording, done screen, admin dashboard and the live viewer
 - [ ] Phase 4: move the screens out of `app.js` into React
   - [x] 4a: React setup and the live viewer
+  - [x] 4b: PIN pad and disclaimer dialogs
   - [ ] the rest of the screens, one at a time

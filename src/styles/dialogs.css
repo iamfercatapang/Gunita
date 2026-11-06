@@ -1,0 +1,84 @@
+/* =============================================================================
+ * Kiosk dialogs (Phase 4b): PIN pad and disclaimer
+ * =============================================================================
+ *
+ * Rendered by src/screens/dialogs. These rules used to be inline styles in
+ * index.html; the values are unchanged. Keys, the disclaimer card and its
+ * buttons are still styled in styles.css; the small-screen overrides are in
+ * responsive.css.
+ */
+
+.kiosk-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#pin-overlay {
+  z-index: 9997;
+  background: rgba(0, 0, 0, 0.88);
+}
+
+#disclaimer-overlay {
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.92);
+  padding: 1.5rem;
+}
+
+/* The dialog takes focus so screen readers announce it; no ring needed. */
+.pin-card:focus,
+.disclaimer-modal:focus {
+  outline: none;
+}
+
+.pin-card {
+  width: 340px;
+  padding: 2.5rem;
+  background: #fff;
+  text-align: center;
+}
+
+.pin-card h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.pin-card p {
+  margin: 0 0 1.25rem;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+#pin-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 3rem;
+  margin-bottom: 1.5rem;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: 0.8rem;
+  color: #111827;
+}
+
+.pin-keys {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.pin-keys .pin-key-cancel {
+  font-size: 0.9rem;
+}
+
+#pin-error {
+  margin-top: 0.75rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #dc2626;
+}

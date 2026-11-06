@@ -40,6 +40,7 @@ import './styles/admin.css';
 import './styles/pb-capture.css';
 import './styles/vg-recording.css';
 import './styles/live-viewer.css';
+import './styles/dialogs.css';
 import './styles/responsive.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
@@ -206,6 +207,17 @@ window.PB.capture = {
   saveBlobLocally,
   downloadBlob,
   deviceStore,
+};
+
+// Kiosk dialogs are React (Phase 4b). They load as their own chunk on first
+// use, or earlier when app.js calls preload() as the kiosk launches, so
+// opening one never waits on the network.
+const loadDialogs = () => import('./screens/dialogs');
+window.PB.ui = {
+  preload: () => void loadDialogs(),
+  askPin: (opts) => loadDialogs().then((m) => m.askPin(opts)),
+  askDisclaimer: (opts) => loadDialogs().then((m) => m.askDisclaimer(opts)),
+  closeAll: () => void loadDialogs().then((m) => m.closeAll()),
 };
 
 // A page opened from the kiosk's QR code (`?viewer=<hostPeerId>`) is the

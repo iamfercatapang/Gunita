@@ -1512,42 +1512,10 @@
         <!-- ============================================ -->
     </div>
 
-    <!-- ========== PIN DIALOG ========== -->
-    <div id="pin-overlay" style="display:none; position:fixed; inset:0; z-index:9997; background:rgba(0,0,0,0.88); align-items:center; justify-content:center;">
-        <div class="kiosk-card" style="background:#fff; padding:2.5rem; width:340px; text-align:center;">
-            <h2 style="margin:0 0 0.4rem; font-size:1.2rem; font-weight:700; color:#111827;">Admin Access</h2>
-            <p style="margin:0 0 1.25rem; font-size:0.85rem; color:#6b7280;">Enter PIN to exit Kiosk Mode</p>
-            <div id="pin-display" style="letter-spacing:0.8rem; font-size:2rem; font-weight:700; color:#111827; height:3rem; margin-bottom:1.5rem; display:flex; align-items:center; justify-content:center;">––––</div>
-            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:0.75rem; margin-bottom:1rem;">
-                <button class="pin-key" data-k="1">1</button>
-                <button class="pin-key" data-k="2">2</button>
-                <button class="pin-key" data-k="3">3</button>
-                <button class="pin-key" data-k="4">4</button>
-                <button class="pin-key" data-k="5">5</button>
-                <button class="pin-key" data-k="6">6</button>
-                <button class="pin-key" data-k="7">7</button>
-                <button class="pin-key" data-k="8">8</button>
-                <button class="pin-key" data-k="9">9</button>
-                <button class="pin-key pin-key-cancel" id="btn-pin-cancel" style="font-size:0.9rem;">Cancel</button>
-                <button class="pin-key" data-k="0">0</button>
-                <button class="pin-key pin-key-del" id="btn-pin-del">⌫</button>
-            </div>
-            <div id="pin-error" style="display:none; margin-top:0.75rem; font-size:0.82rem; color:#dc2626; font-weight:600;">Incorrect PIN. Try again.</div>
-        </div>
-    </div>
-
-    <!-- ========== QR CODE OVERLAY ========== -->
-    <!-- ========== DISCLAIMER DIALOG (kiosk) ========== -->
-    <div id="disclaimer-overlay" style="display:none; position:fixed; inset:0; z-index:9998; background:rgba(0,0,0,0.92); align-items:center; justify-content:center; padding:1.5rem;">
-        <div class="disclaimer-modal">
-            <h2 id="disclaimer-modal-title" class="disclaimer-modal-title">Do you agree with the terms?</h2>
-            <div id="disclaimer-modal-body" class="disclaimer-modal-body"></div>
-            <div class="disclaimer-modal-actions">
-                <button id="btn-disclaimer-reject" class="disclaimer-btn disclaimer-btn-reject">Reject</button>
-                <button id="btn-disclaimer-accept" class="disclaimer-btn disclaimer-btn-accept">Accept &amp; Continue</button>
-            </div>
-        </div>
-    </div>
+    <!-- ========== KIOSK DIALOGS ========== -->
+    <!-- PIN pad and disclaimer, rendered by React (src/screens/dialogs) when
+         app.js calls window.PB.ui.askPin / askDisclaimer. -->
+    <div id="kiosk-dialogs"></div>
 
     <!-- ======================================= -->
 
