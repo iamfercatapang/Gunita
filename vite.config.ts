@@ -1,3 +1,4 @@
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -5,6 +6,8 @@ export default defineConfig({
   base: './',
   publicDir: 'public',
   plugins: [
+    // Phase 4: screens move out of public/app.js into React, one at a time.
+    react(),
     // Builds manifest.webmanifest + a service worker so the kiosk installs as
     // an app (Chrome "Install app", iPad "Add to Home Screen") and loads with
     // no internet at the venue. Same setup as the Minted app.

@@ -60,7 +60,8 @@ import {
 } from './lib/capture';
 import { DeviceManager } from './lib/devices';
 import { DriveClient } from './lib/drive';
-import { LiveViewerClient, LiveViewerHost } from './lib/live-viewer';
+import { LiveViewerHost } from './lib/live-viewer';
+import { renderQr } from './lib/qr';
 import { KioskSecurity } from './lib/security';
 import './state/app-state';
 
@@ -146,33 +147,7 @@ function setVisible(id: string, visible: boolean): void {
 }
 function paintQr(targetId: string, text: string): void {
   const target = document.getElementById(targetId);
-  if (!target) return;
-  target.innerHTML = '';
-  const QR = (
-    window as unknown as {
-      QRCode?: new (
-        el: HTMLElement,
-        opts: {
-          text: string;
-          width: number;
-          height: number;
-          colorDark: string;
-          colorLight: string;
-          correctLevel: number;
-        },
-      ) => unknown;
-    }
-  ).QRCode;
-  const Level = (window as unknown as { QRCode?: { CorrectLevel: { M: number } } }).QRCode;
-  if (!QR || !Level) return;
-  new QR(target, {
-    text,
-    width: 164,
-    height: 164,
-    colorDark: '#1e293b',
-    colorLight: '#ffffff',
-    correctLevel: Level.CorrectLevel.M,
-  });
+  if (target) renderQr(target, text, { size: 164, dark: '#1e293b', light: '#ffffff' });
 }
 
 const liveViewerHost = new LiveViewerHost(
@@ -233,8 +208,13 @@ window.PB.capture = {
   deviceStore,
 };
 
-// Viewer mode auto-boots when the URL has `?viewer=<id>`; no-op otherwise.
-LiveViewerClient.tryStart();
+// A page opened from the kiosk's QR code (`?viewer=<hostPeerId>`) is the
+// live viewer, a React screen. It loads as its own chunk, so the kiosk
+// doesn't pay for it.
+const viewerHostId = new URLSearchParams(window.location.search).get('viewer');
+if (viewerHostId) {
+  void import('./screens/live-viewer').then(({ startLiveViewer }) => startLiveViewer(viewerHostId));
+}
 
 // Best-effort: try to flush any uploads that were queued offline last session.
 // The DriveClient also wires its own `online` listener.
