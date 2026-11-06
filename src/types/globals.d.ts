@@ -17,6 +17,7 @@ import type { DriveClient } from '../lib/drive';
 import type { LiveViewerHost } from '../lib/live-viewer';
 import type { KioskSecurity } from '../lib/security';
 import type { AskDisclaimerOptions, AskPinOptions } from '../screens/dialogs';
+import type { DoneScreenOptions } from '../screens/guest-flow';
 import type { AppConfig } from '../state/app-state';
 import type { CaptureType } from '../state/captures';
 
@@ -111,7 +112,15 @@ declare global {
         askDisclaimer: (opts: AskDisclaimerOptions) => Promise<boolean>;
         /** Open the kiosk's Recent Captures window. */
         showRecentCaptures: () => void;
-        /** Close any open dialog as cancelled, and Recent Captures. */
+        /** Freeze the guest's current video frame for the photo booth offer. */
+        freezeOfferBackdrop: (video: HTMLElement | null) => void;
+        /** "Take a photo too?" Resolves true if the guest says yes. */
+        offerPhotoBooth: () => Promise<boolean>;
+        /** The done screen; resolves when the guest is done. */
+        showDone: (opts: DoneScreenOptions) => Promise<void>;
+        /** "What questions will be asked?" */
+        showPromptsPreview: (prompts: string[]) => void;
+        /** Close every kiosk overlay; pending questions resolve as no. */
         closeAll: () => void;
       };
     };

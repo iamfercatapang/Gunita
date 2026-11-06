@@ -1198,15 +1198,10 @@
             </button>
         </div>
 
-        <!-- ========== PROMPTS PREVIEW MODAL ========== -->
-        <div id="prompts-preview-modal" style="display:none; position:absolute; inset:0; z-index:65; background:rgba(0,0,0,0.82); flex-direction:column; justify-content:center; align-items:center; padding:2rem;">
-            <div class="prompts-preview-inner">
-                <p class="prompts-preview-intro">We'll ask you just a few questions, interview style. It's like a video guestbook.</p>
-                <p class="prompts-preview-note">Don't worry, you can RE-DO at any time. The Q's include:</p>
-                <div id="prompts-preview-list"></div>
-                <button id="btn-close-prompts-preview" class="prompts-preview-close">Got it!</button>
-            </div>
-        </div>
+        <!-- ========== GUEST FLOW SCREENS ========== -->
+        <!-- Prompts preview, photo booth offer and done screen, rendered by
+             React (src/screens/guest-flow) when app.js calls window.PB.ui. -->
+        <div id="kiosk-guest-screens"></div>
 
         <!-- ========== RECENT CAPTURES KIOSK MODAL ========== -->
         <!-- Rendered by React (src/screens/galleries) when the guest taps Recent Captures. -->
@@ -1373,41 +1368,6 @@
             </button>
         </div>
 
-        <!-- ========== VG → PB OFFER OVERLAY ==========
-             Restyled cross-sell moment. Backdrop is a frozen frame of the
-             guest's just-recorded video (drawn to canvas at show-time), with
-             vignette overlay. Headline in Fraunces; magenta hero pill primary;
-             outline "No thanks" pill with a thin draining ring as countdown. -->
-        <div id="vg-pb-offer" style="display:none;">
-            <canvas id="vg-pbo-bg-canvas" class="vg-pbo-bg-canvas"></canvas>
-            <div class="vg-pbo-vignette"></div>
-            <div class="vg-pbo-content">
-                <h2 class="vg-pbo-title">
-                    Loved that?<br>
-                    <span class="vg-pbo-title-em">Take a photo too.</span>
-                </h2>
-                <p class="vg-pbo-subtitle">Strike a quick pose &mdash; takes about 10 seconds.</p>
-                <div class="vg-pbo-buttons">
-                    <button id="btn-vg-pbo-yes" class="vg-pbo-btn vg-pbo-btn-yes">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                        <span>Sure, let's go</span>
-                    </button>
-                    <button id="btn-vg-pbo-no" class="vg-pbo-btn vg-pbo-btn-no">
-                        <span>No thanks</span>
-                        <span class="vg-pbo-no-timer">
-                            <svg class="vg-pbo-ring" viewBox="0 0 36 36" aria-hidden="true">
-                                <circle class="vg-pbo-ring-track" cx="18" cy="18" r="16" fill="none"></circle>
-                                <circle class="vg-pbo-ring-progress" id="vg-pbo-ring-progress" cx="18" cy="18" r="16" fill="none" pathLength="100"></circle>
-                            </svg>
-                            <span class="vg-pbo-secs" id="vg-pbo-secs">15</span>
-                        </span>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-
-
         <!-- ========== CAMERA LOST OVERLAY ========== -->
         <div id="kiosk-camera-lost" style="display:none; position:absolute; inset:0; z-index:200; background:rgba(0,0,0,0.95); flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1rem; padding:2rem;">
             <i class="fa-solid fa-video-slash" style="font-size:4rem; color:#fca5a5;"></i>
@@ -1420,45 +1380,6 @@
                 </button>
                 <button id="btn-camera-lost-exit" style="padding:0.9rem 2.25rem; background:#374151; color:#fff; border:none; border-radius:999px; font-size:1.05rem; font-weight:700; cursor:pointer;">
                     Exit to Settings
-                </button>
-            </div>
-        </div>
-
-        <!-- ========== VG DONE SCREEN ==========
-             Consolidated post-capture screen. Replaces the three legacy
-             overlays (vg-drive-qr-prompt, vg-drive-qr-show, vg-thankyou-overlay)
-             with a single Fraunces "Thank you" page that optionally shows the
-             Drive QR card and auto-dismisses via the ring countdown. -->
-        <div id="vg-done-screen" style="display:none;">
-            <img id="vg-done-bg-img" class="vg-done-bg-img" src="" alt="">
-            <div class="vg-done-content">
-                <div class="vg-done-qr-card" id="vg-done-qr-card" style="display:none;">
-                    <div class="vg-done-qr-heading-row">
-                        <span class="vg-done-qr-badge" aria-hidden="true"></span>
-                        <p class="vg-done-qr-heading">Want a copy?</p>
-                    </div>
-                    <div class="vg-done-qr-body">
-                        <div class="vg-done-qr-target">
-                            <div class="vg-done-qr-spinner" id="vg-done-qr-spinner">
-                                <div class="vg-dqr-spinner-ring"></div>
-                            </div>
-                            <div class="vg-done-qr-image" id="vg-done-qr-image"></div>
-                        </div>
-                        <div class="vg-done-qr-copy">
-                            <p class="vg-done-qr-label">Scan to open your session<br>on Google Drive</p>
-                            <p class="vg-done-qr-link" id="vg-done-qr-link"></p>
-                        </div>
-                    </div>
-                </div>
-                <button id="btn-vg-done" class="vg-done-btn">
-                    <span>All done</span>
-                    <span class="vg-pbo-no-timer">
-                        <svg class="vg-pbo-ring" viewBox="0 0 36 36" aria-hidden="true">
-                            <circle class="vg-pbo-ring-track" cx="18" cy="18" r="16" fill="none"></circle>
-                            <circle class="vg-pbo-ring-progress" id="vg-done-ring-progress" cx="18" cy="18" r="16" fill="none" pathLength="100"></circle>
-                        </svg>
-                        <span class="vg-pbo-secs" id="vg-done-secs"></span>
-                    </span>
                 </button>
             </div>
         </div>

@@ -1,0 +1,29 @@
+/* =============================================================================
+ * Guest flow (Phase 4d): prompts preview and done-screen notes
+ * =============================================================================
+ *
+ * Rendered by src/screens/guest-flow. The photo booth offer and done screen
+ * are styled in pb-offer.css and done-screen.css. These rules used to be
+ * inline styles in index.html and app.js; the values are unchanged.
+ */
+
+#prompts-preview-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+/* Shown in the QR spot when the link never arrived or the QR failed. */
+.vg-done-qr-note {
+  padding: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  text-align: center;
+  color: #9ca3af;
+}

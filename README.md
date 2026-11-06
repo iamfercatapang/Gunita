@@ -60,6 +60,7 @@ Gunita started as one big `app.js`. It's being moved to typed modules a piece at
   - `live-viewer/`: the hosts' phone gallery, for `?viewer=` links.
   - `dialogs/`: the kiosk's PIN pad and disclaimer. `app.js` opens them with `await window.PB.ui.askPin(...)` / `askDisclaimer(...)`.
   - `galleries/`: Recent Captures on the dashboard (with "View all" and the lightbox) and on the kiosk.
+  - `guest-flow/`: the "Take a photo too?" offer after a video, the done screen with the Drive QR code, and the prompts preview.
 
   React screens load as separate chunks after the page is up, so they never hold up the first paint.
 - `src/styles/`: design tokens (`tokens.css`, `themes.css`) and the redesigned screens.
@@ -75,4 +76,7 @@ CI runs lint, typecheck and build on every push and pull request to `main` and `
   - [x] 4a: React setup and the live viewer
   - [x] 4b: PIN pad and disclaimer dialogs
   - [x] 4c: galleries and the shared captures list
-  - [ ] the rest of the screens, one at a time
+  - [x] 4d: photo booth offer, done screen and prompts preview
+  - [ ] 4e: a settings store, then the admin panels and the welcome screen (its designer panel edits it live, so they move together)
+  - [ ] 4f: photo booth capture and video recording
+  - [ ] 4g: remove `app.js` and jQuery
