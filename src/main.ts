@@ -44,6 +44,7 @@ import './styles/live-viewer.css';
 import './styles/dialogs.css';
 import './styles/galleries.css';
 import './styles/guest-flow.css';
+import './styles/capture.css';
 import './styles/responsive.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
@@ -198,9 +199,13 @@ const loadGalleries = () => import('./screens/galleries');
 const loadGuestFlow = () => import('./screens/guest-flow');
 const loadAdmin = () => import('./screens/admin');
 const loadWelcome = () => import('./screens/welcome');
+const loadCapture = () => import('./screens/capture');
 if (!new URLSearchParams(window.location.search).has('viewer')) {
   void loadAdmin().then((m) => m.mountAdmin());
   void loadWelcome().then((m) => m.mountWelcome());
+  // Mounted up front: the preview <video> must exist when the kiosk launches
+  // (see src/screens/capture/PreviewOverlay.tsx).
+  void loadCapture().then((m) => m.mountCapture());
   void loadGalleries().then((m) => m.mountGalleries());
 }
 // The guest's last video frame, frozen when the camera is released, shown
@@ -214,6 +219,9 @@ window.PB.ui = {
   askPin: (opts) => loadDialogs().then((m) => m.askPin(opts)),
   askDisclaimer: (opts) => loadDialogs().then((m) => m.askDisclaimer(opts)),
   showWelcome: () => void loadWelcome().then((m) => m.showWelcome()),
+  startPhotoSession: () => void loadCapture().then((m) => m.runPhotoSession()),
+  startVideoSession: () => void loadCapture().then((m) => m.runVideoSession()),
+  resetToWelcome: () => void loadCapture().then((m) => m.resetToWelcome()),
   hideWelcome: () => void loadWelcome().then((m) => m.hideWelcome()),
   showRecentCaptures: () => void loadGalleries().then((m) => m.showRecentCaptures()),
   freezeOfferBackdrop: (video) => {
@@ -226,6 +234,7 @@ window.PB.ui = {
     void loadDialogs().then((m) => m.closeAll());
     void loadGalleries().then((m) => m.closeRecentCaptures());
     void loadGuestFlow().then((m) => m.closeGuestScreens());
+    void loadCapture().then((m) => m.closeCapture());
   },
 };
 

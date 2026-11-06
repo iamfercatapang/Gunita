@@ -1,0 +1,158 @@
+/* =============================================================================
+ * Kiosk capture screens (Phase 4f, src/screens/capture)
+ * =============================================================================
+ *
+ * What the capture markup and app.js used to set inline, as classes.
+ * The rest of the styling is still pb-capture.css, vg-recording.css and
+ * styles.css, matched by the same ids.
+ * ============================================================================= */
+
+/* The booths fill #kiosk-mode; their React root shouldn't add a box. */
+#kiosk-capture-root {
+  display: contents;
+}
+
+/* ─── Photo booth ─────────────────────────────────────────────────────────── */
+
+/* The shutter flash: full white, fading out over 300 ms. */
+#flash-overlay.is-firing {
+  animation: capture-flash 300ms linear forwards;
+}
+
+@keyframes capture-flash {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* ─── Video guestbook ─────────────────────────────────────────────────────── */
+
+.vg-overlay-live {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.vg-time-left.is-low {
+  color: #fca5a5;
+}
+
+#vg-save-error-overlay {
+  display: flex;
+}
+
+/* Messages over the booth: recording error, short recording. */
+.vg-notice-icon {
+  font-size: 3rem;
+  color: #fca5a5;
+  margin-bottom: 0.75rem;
+}
+
+.vg-notice-title {
+  color: #fff;
+  margin: 0 0 0.5rem;
+}
+
+.vg-notice-text {
+  color: #9ca3af;
+  font-size: 0.95rem;
+  max-width: 300px;
+  text-align: center;
+}
+
+.vg-notice-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.vg-notice-btn {
+  padding: 0.8rem 1.75rem;
+  background: #374151;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vg-notice-btn--retry {
+  background: #1d4ed8;
+}
+
+.vg-notice-btn--accent {
+  background: #297aa0;
+}
+
+.vg-notice-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ─── Camera lost ─────────────────────────────────────────────────────────── */
+
+#kiosk-camera-lost {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.95);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.camera-lost-icon {
+  font-size: 4rem;
+  color: #fca5a5;
+}
+
+.camera-lost-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.camera-lost-text {
+  font-size: 1rem;
+  color: #9ca3af;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+.camera-lost-text strong {
+  color: #fff;
+}
+
+#camera-lost-status {
+  font-size: 0.9rem;
+  color: #fca5a5;
+  min-height: 1.2em;
+  margin: 0;
+}
+
+.camera-lost-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.5rem;
+}
+
+.camera-lost-btn {
+  padding: 0.9rem 2.25rem;
+  font-size: 1.05rem;
+}

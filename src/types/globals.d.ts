@@ -32,6 +32,8 @@ interface KioskActions {
   startSession: () => void;
   /** The hidden Exit Kiosk button: asks for the PIN if one is set. */
   requestExit: () => void;
+  /** Leave the kiosk now, without the PIN (the camera-lost screen's exit). */
+  exit: () => void;
 }
 
 declare global {
@@ -136,6 +138,12 @@ declare global {
         showWelcome: () => void;
         /** Hide it as a session starts. */
         hideWelcome: () => void;
+        /** Run a photo booth session (src/screens/capture). */
+        startPhotoSession: () => void;
+        /** Run a video guestbook session. */
+        startVideoSession: () => void;
+        /** Close the capture screens and show the welcome screen. */
+        resetToWelcome: () => void;
         /** Open the kiosk's Recent Captures window. */
         showRecentCaptures: () => void;
         /** Freeze the guest's current video frame for the photo booth offer. */
@@ -146,7 +154,7 @@ declare global {
         showDone: (opts: DoneScreenOptions) => Promise<void>;
         /** "What questions will be asked?" */
         showPromptsPreview: (prompts: string[]) => void;
-        /** Close every kiosk overlay; pending questions resolve as no. */
+        /** Close every kiosk overlay and stop any recording; pending questions resolve as no. */
         closeAll: () => void;
       };
     };
