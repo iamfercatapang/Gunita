@@ -42,6 +42,7 @@ import './styles/vg-recording.css';
 import './styles/live-viewer.css';
 import './styles/dialogs.css';
 import './styles/galleries.css';
+import './styles/guest-flow.css';
 import './styles/responsive.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
@@ -66,6 +67,7 @@ import { LiveViewerHost } from './lib/live-viewer';
 import { renderQr } from './lib/qr';
 import { KioskSecurity } from './lib/security';
 import './state/app-state';
+import { freezeFrame } from './screens/guest-flow/freeze-frame';
 import { addCapture, captureCount, setDriveUrl } from './state/captures';
 
 // Expose bundled vendor libs as globals for the legacy app.js.
@@ -214,22 +216,36 @@ window.PB.capture = {
 window.PB.captures = { add: addCapture, setDriveUrl, count: captureCount };
 
 // React screens load as their own chunks. The galleries mount as soon as the
-// page is up (the dashboard shows one). The kiosk dialogs load on first use,
-// or earlier when app.js calls preload() as the kiosk launches, so opening
-// one never waits on the network.
+// page is up (the dashboard shows one). Kiosk screens load on first use, or
+// earlier when app.js calls preload() as the kiosk launches, so opening one
+// never waits on the network.
 const loadDialogs = () => import('./screens/dialogs');
 const loadGalleries = () => import('./screens/galleries');
+const loadGuestFlow = () => import('./screens/guest-flow');
 if (!new URLSearchParams(window.location.search).has('viewer')) {
   void loadGalleries().then((m) => m.mountGalleries());
 }
+// The guest's last video frame, frozen when the camera is released, shown
+// behind the photo booth offer.
+let offerBackdrop: HTMLCanvasElement | null = null;
 window.PB.ui = {
-  preload: () => void loadDialogs(),
+  preload: () => {
+    void loadDialogs();
+    void loadGuestFlow();
+  },
   askPin: (opts) => loadDialogs().then((m) => m.askPin(opts)),
   askDisclaimer: (opts) => loadDialogs().then((m) => m.askDisclaimer(opts)),
   showRecentCaptures: () => void loadGalleries().then((m) => m.showRecentCaptures()),
+  freezeOfferBackdrop: (video) => {
+    offerBackdrop = freezeFrame(video as HTMLVideoElement | null);
+  },
+  offerPhotoBooth: () => loadGuestFlow().then((m) => m.offerPhotoBooth(offerBackdrop)),
+  showDone: (opts) => loadGuestFlow().then((m) => m.showDone(opts)),
+  showPromptsPreview: (prompts) => void loadGuestFlow().then((m) => m.showPromptsPreview(prompts)),
   closeAll: () => {
     void loadDialogs().then((m) => m.closeAll());
     void loadGalleries().then((m) => m.closeRecentCaptures());
+    void loadGuestFlow().then((m) => m.closeGuestScreens());
   },
 };
 

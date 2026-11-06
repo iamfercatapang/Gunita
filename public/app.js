@@ -1140,7 +1140,7 @@ $(document).ready(function() {
         setTimeout(triggerVgSequence, 500);
     });
 
-    // Prompts preview modal
+    // Prompts preview (a React screen: src/screens/guest-flow)
     $('#btn-show-prompts-preview').on('click', function(e) {
         e.stopPropagation();
         const disabled = appConfig.vgDisabledTemplatePrompts;
@@ -1148,21 +1148,7 @@ $(document).ready(function() {
             ...(PROMPT_TEMPLATES[appConfig.vgPromptCategory] || []).filter(function(q) { return disabled.indexOf(q) === -1; }),
             ...appConfig.vgCustomPrompts.filter(function(p) { return p.enabled; }).map(function(p) { return p.text; })
         ];
-        const $list = $('#prompts-preview-list').empty();
-        prompts.forEach(function(q) {
-            $list.append($('<div class="prompt-preview-item">').text(q));
-        });
-        $('#prompts-preview-modal').css('display', 'flex');
-    });
-
-    $('#btn-close-prompts-preview').on('click', function() {
-        $('#prompts-preview-modal').hide();
-    });
-
-    $('#prompts-preview-modal').on('click', function(e) {
-        if ($(e.target).is('#prompts-preview-modal')) {
-            $(this).hide();
-        }
+        window.PB.ui.showPromptsPreview(prompts);
     });
 
     // Tap anywhere on the welcome screen to start (not just the small button)
@@ -1966,7 +1952,7 @@ $(document).ready(function() {
      * camera first, since the feed is blank once the camera is closed.
      */
     function _releaseVgCapture() {
-        _paintVgPbOfferBackdrop();
+        window.PB.ui.freezeOfferBackdrop(document.getElementById('vg-camera-feed'));
         window.PB.audio.stopMicMonitor();
         window.PB.capture.camera.release();
     }
@@ -2072,248 +2058,22 @@ $(document).ready(function() {
         resetToWelcomeScreen();
     }
 
+    // "Take a photo too?" offer (a React screen: src/screens/guest-flow).
+    // Resolves true if the guest wants a photo strip. Its backdrop is the
+    // frame frozen in _releaseVgCapture.
     function showVgPbOffer() {
-        return new Promise(function(resolve) {
-            const overlay     = document.getElementById('vg-pb-offer');
-            const yesBtn      = document.getElementById('btn-vg-pbo-yes');
-            const noBtn       = document.getElementById('btn-vg-pbo-no');
-            const ring        = document.getElementById('vg-pbo-ring-progress');
-            const secsEl      = document.getElementById('vg-pbo-secs');
-            const SECS        = 15;
-            let remaining     = SECS;
-
-            // Frozen-frame backdrop: draw the last live frame from the VG video
-            // element into a canvas so the offer has the guest's own moment
-            // (blurred + vignetted) behind it instead of flat black.
-            _paintVgPbOfferBackdrop();
-
-            // Reset ring + label to initial state.
-            if (ring) {
-                ring.style.transition = 'none';
-                ring.style.strokeDashoffset = '0';
-                // Force layout flush so the transition reset applies before we
-                // re-enable the transition for the drain animation.
-                void ring.getBoundingClientRect();
-                ring.style.transition = 'stroke-dashoffset 1s linear';
-            }
-            if (secsEl) secsEl.textContent = String(remaining);
-            overlay.style.display = 'flex';
-
-            const timer = setInterval(function() {
-                remaining--;
-                const drained = ((SECS - remaining) / SECS) * 100;
-                if (ring) ring.style.strokeDashoffset = String(drained);
-                if (secsEl) secsEl.textContent = String(Math.max(0, remaining));
-                if (remaining <= 0) finish(false);
-            }, 1000);
-
-            function finish(accepted) {
-                clearInterval(timer);
-                overlay.style.display = 'none';
-                yesBtn.removeEventListener('click', onYes);
-                noBtn.removeEventListener('click', onNo);
-                resolve(accepted);
-            }
-
-            function onYes() { finish(true);  }
-            function onNo()  { finish(false); }
-
-            yesBtn.addEventListener('click', onYes);
-            noBtn.addEventListener('click', onNo);
-        });
+        return window.PB.ui.offerPhotoBooth();
     }
 
-    // Draw the current frame of the VG video element to the offer's backdrop
-    // canvas. Called at offer-show time, when the live stream is still active.
-    // Best-effort: if the video isn't ready, the canvas stays blank and the
-    // overlay falls back to its dark background.
-    function _paintVgPbOfferBackdrop() {
-        const canvas = document.getElementById('vg-pbo-bg-canvas');
-        const videoEl = document.getElementById('vg-camera-feed');
-        if (!canvas || !videoEl) return;
-        const vw = videoEl.videoWidth;
-        const vh = videoEl.videoHeight;
-        if (!vw || !vh) return;
-        canvas.width = vw;
-        canvas.height = vh;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-        try {
-            // Mirror to match the viewfinder orientation guests saw.
-            ctx.save();
-            ctx.translate(vw, 0);
-            ctx.scale(-1, 1);
-            ctx.drawImage(videoEl, 0, 0, vw, vh);
-            ctx.restore();
-        } catch (e) {
-            console.warn('[PB-Offer] backdrop draw failed:', e && e.message);
-        }
-    }
-
-    // Consolidated post-capture Done screen. Replaces the legacy three-overlay
-    // chain (Drive-QR-ask → Drive-QR-show → ThankYou). Caller decides whether
-    // to show it via the wantsDoneScreen check; this function then renders
-    // whichever sections apply (headline, QR card, both, or just the action
-    // button) and auto-dismisses via a draining ring countdown.
-    // Two-phase post-capture screen:
-    //   Phase A (when Drive QR is configured): QR card + "All done" button
-    //     (no draining ring). Guest taps All done OR a 90s safety timeout
-    //     fires → QR card fades out → Phase B begins.
-    //   Phase B (always, when reached): bg image (or dark) + All-done button
-    //     with a visible ring counting down vgThankYouDuration. Guest can
-    //     tap to advance early; otherwise the ring drains to welcome.
+    // Post-capture Done screen (a React screen: src/screens/guest-flow).
+    // With Drive on it first shows the session's QR code, then a thank-you
+    // countdown back to welcome. Resolves when the guest is done.
     function showVgDoneScreen() {
-        return new Promise(function(resolve) {
-            const overlay      = document.getElementById('vg-done-screen');
-            const bgImg        = document.getElementById('vg-done-bg-img');
-            const qrCard       = document.getElementById('vg-done-qr-card');
-            const qrTarget     = document.getElementById('vg-done-qr-image');
-            const qrLinkEl     = document.getElementById('vg-done-qr-link');
-            const doneBtn      = document.getElementById('btn-vg-done');
-            const doneTimerEl  = doneBtn ? doneBtn.querySelector('.vg-pbo-no-timer') : null;
-            const ring         = document.getElementById('vg-done-ring-progress');
-            const secsEl       = document.getElementById('vg-done-secs');
-
-            const showQr = !!appConfig.vgSaveDrive && window.PB.drive.isSignedIn();
-            const TY_SECS = Math.max(2, appConfig.vgThankYouDuration || 5);
-            const QR_SAFETY_MS = 90000; // safety timeout in case guest walks away
-            let qrPhaseTimeoutId = null;
-            let tyTimerId        = null;
-            let tyTickId         = null;
-            let qrPollId         = null;
-            let resolved         = false;
-
-            // Configured background image (if any).
-            if (appConfig.vgThankYouImage) {
-                bgImg.src = appConfig.vgThankYouImage.objectUrl;
-                overlay.classList.add('has-bg-image');
-            } else {
-                bgImg.src = '';
-                overlay.classList.remove('has-bg-image');
-            }
-
-            // Reset button visibility from any prior session.
-            doneBtn.style.display = '';
-            doneBtn.style.opacity = '';
-            doneBtn.style.transition = '';
-
-            overlay.style.display = 'flex';
-
-            if (showQr) {
-                // ─── Phase A: QR modal ─────────────────────────────────────
-                qrCard.classList.remove('is-ready');
-                qrTarget.innerHTML = '';
-                qrLinkEl.textContent = '';
-                qrCard.style.display = 'flex';
-                // Re-trigger the entrance animation by force-reflowing.
-                qrCard.style.animation = 'none';
-                void qrCard.offsetWidth;
-                qrCard.style.animation = '';
-                // All-done is visible from the start; ring is hidden during
-                // Phase A so the guest isn't pressured to scan against a clock.
-                if (doneTimerEl) doneTimerEl.style.display = 'none';
-                _waitForLinkAndShowQr();
-
-                qrPhaseTimeoutId = setTimeout(_endQrPhase, QR_SAFETY_MS);
-                doneBtn.addEventListener('click', _endQrPhase, { once: true });
-            } else {
-                // No QR — go straight to Phase B with the ring countdown.
-                qrCard.style.display = 'none';
-                if (doneTimerEl) doneTimerEl.style.display = '';
-                _startThankYouPhase();
-            }
-
-            function _endQrPhase() {
-                clearTimeout(qrPhaseTimeoutId);
-                qrPhaseTimeoutId = null;
-                doneBtn.removeEventListener('click', _endQrPhase);
-                if (qrPollId) {
-                    clearTimeout(qrPollId);
-                    qrPollId = null;
-                }
-                // Fade only the QR card; keep the All-done button visible so
-                // the guest can still dismiss during the thank-you pause.
-                qrCard.style.transition = 'opacity 250ms ease-out';
-                qrCard.style.opacity = '0';
-                setTimeout(function() {
-                    qrCard.style.display = 'none';
-                    qrCard.style.opacity = '';
-                    qrCard.style.transition = '';
-                    // Reveal the ring + start the thank-you countdown.
-                    if (doneTimerEl) doneTimerEl.style.display = '';
-                    _startThankYouPhase();
-                }, 260);
-            }
-
-            function _startThankYouPhase() {
-                const total = TY_SECS;
-                let remaining = total;
-
-                if (ring) {
-                    ring.style.transition = 'none';
-                    ring.style.strokeDashoffset = '0';
-                    void ring.getBoundingClientRect();
-                    ring.style.transition = 'stroke-dashoffset 1s linear';
-                }
-                if (secsEl) secsEl.textContent = String(total);
-                tyTickId = setInterval(function() {
-                    remaining--;
-                    const drained = ((total - remaining) / total) * 100;
-                    if (ring) ring.style.strokeDashoffset = String(drained);
-                    if (secsEl) secsEl.textContent = String(Math.max(0, remaining));
-                    if (remaining <= 0) _finish();
-                }, 1000);
-                doneBtn.addEventListener('click', _finish, { once: true });
-            }
-
-            function _finish() {
-                if (resolved) return;
-                resolved = true;
-                clearTimeout(qrPhaseTimeoutId);
-                clearTimeout(tyTimerId);
-                clearInterval(tyTickId);
-                if (qrPollId) clearTimeout(qrPollId);
-                doneBtn.removeEventListener('click', _finish);
-                doneBtn.removeEventListener('click', _endQrPhase);
-                overlay.style.display = 'none';
-                resolve();
-            }
-
-            function _waitForLinkAndShowQr() {
-                const MAX_WAIT_MS = 30000;
-                const POLL_MS     = 500;
-                let elapsed       = 0;
-
-                function poll() {
-                    if (currentSessionFolderLink) {
-                        qrTarget.innerHTML = '';
-                        try {
-                            new QRCode(qrTarget, {
-                                text: currentSessionFolderLink,
-                                width: 178,
-                                height: 178,
-                                colorDark: '#0b0b0f',
-                                colorLight: '#ffffff',
-                                correctLevel: QRCode.CorrectLevel.M
-                            });
-                            qrLinkEl.textContent = currentSessionFolderLink;
-                        } catch (e) {
-                            console.warn('[QR] Drive QR generation failed:', e);
-                            qrTarget.innerHTML = '<div style="color:#9ca3af;font-size:0.78rem;padding:0.5rem;text-align:center;line-height:1.4;">Could not generate QR code.</div>';
-                        }
-                        qrCard.classList.add('is-ready');
-                        return;
-                    }
-                    elapsed += POLL_MS;
-                    if (elapsed >= MAX_WAIT_MS) {
-                        qrTarget.innerHTML = '<div style="color:#9ca3af;font-size:0.78rem;padding:0.5rem;text-align:center;line-height:1.4;">Upload in progress.<br>See the operator for your link.</div>';
-                        qrCard.classList.add('is-ready');
-                        return;
-                    }
-                    qrPollId = setTimeout(poll, POLL_MS);
-                }
-                poll();
-            }
+        return window.PB.ui.showDone({
+            showQr: !!appConfig.vgSaveDrive && window.PB.drive.isSignedIn(),
+            thankYouSecs: appConfig.vgThankYouDuration,
+            backgroundUrl: appConfig.vgThankYouImage ? appConfig.vgThankYouImage.objectUrl : null,
+            getDriveLink: function() { return currentSessionFolderLink; },
         });
     }
     function showVgPreview(blobUrl) {
