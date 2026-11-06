@@ -41,6 +41,7 @@ import './styles/pb-capture.css';
 import './styles/vg-recording.css';
 import './styles/live-viewer.css';
 import './styles/dialogs.css';
+import './styles/galleries.css';
 import './styles/responsive.css';
 
 // Side-effect modules: populate window globals consumed by app.js.
@@ -65,6 +66,7 @@ import { LiveViewerHost } from './lib/live-viewer';
 import { renderQr } from './lib/qr';
 import { KioskSecurity } from './lib/security';
 import './state/app-state';
+import { addCapture, captureCount, setDriveUrl } from './state/captures';
 
 // Expose bundled vendor libs as globals for the legacy app.js.
 window.$ = jQueryLib;
@@ -209,15 +211,26 @@ window.PB.capture = {
   deviceStore,
 };
 
-// Kiosk dialogs are React (Phase 4b). They load as their own chunk on first
-// use, or earlier when app.js calls preload() as the kiosk launches, so
-// opening one never waits on the network.
+window.PB.captures = { add: addCapture, setDriveUrl, count: captureCount };
+
+// React screens load as their own chunks. The galleries mount as soon as the
+// page is up (the dashboard shows one). The kiosk dialogs load on first use,
+// or earlier when app.js calls preload() as the kiosk launches, so opening
+// one never waits on the network.
 const loadDialogs = () => import('./screens/dialogs');
+const loadGalleries = () => import('./screens/galleries');
+if (!new URLSearchParams(window.location.search).has('viewer')) {
+  void loadGalleries().then((m) => m.mountGalleries());
+}
 window.PB.ui = {
   preload: () => void loadDialogs(),
   askPin: (opts) => loadDialogs().then((m) => m.askPin(opts)),
   askDisclaimer: (opts) => loadDialogs().then((m) => m.askDisclaimer(opts)),
-  closeAll: () => void loadDialogs().then((m) => m.closeAll()),
+  showRecentCaptures: () => void loadGalleries().then((m) => m.showRecentCaptures()),
+  closeAll: () => {
+    void loadDialogs().then((m) => m.closeAll());
+    void loadGalleries().then((m) => m.closeRecentCaptures());
+  },
 };
 
 // A page opened from the kiosk's QR code (`?viewer=<hostPeerId>`) is the

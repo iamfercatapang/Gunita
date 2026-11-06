@@ -18,16 +18,13 @@ import type { LiveViewerHost } from '../lib/live-viewer';
 import type { KioskSecurity } from '../lib/security';
 import type { AskDisclaimerOptions, AskPinOptions } from '../screens/dialogs';
 import type { AppConfig } from '../state/app-state';
+import type { CaptureType } from '../state/captures';
 
 declare global {
   interface Window {
     // Runtime media state (mutated by app.js)
     currentStream: MediaStream | null;
     directoryHandle: FileSystemDirectoryHandle | null;
-    capturedPhotos: string[];
-    capturedPhotoDriveLinks: (string | null)[];
-    capturedVideos: string[];
-    capturedVideoDriveLinks: (string | null)[];
     currentSessionId: string | null;
     currentSessionFolderId: string | null;
     currentSessionFolderLink: string | null;
@@ -96,7 +93,15 @@ declare global {
         downloadBlob: (blob: Blob, filename: string) => void;
         deviceStore: typeof deviceStore;
       };
-      /** React kiosk dialogs (src/screens/dialogs), loaded on first use. */
+      /** This session's captures, newest first (src/state/captures.ts). */
+      captures: {
+        /** Add a capture; returns its id. Old ones drop off past the cap. */
+        add: (type: CaptureType, src: string) => number;
+        /** Record the Drive link once the capture's upload has finished. */
+        setDriveUrl: (id: number, driveUrl: string) => void;
+        count: () => number;
+      };
+      /** React kiosk screens (src/screens), loaded on first use. */
       ui: {
         /** Start loading the dialogs chunk so the first one opens instantly. */
         preload: () => void;
@@ -104,7 +109,9 @@ declare global {
         askPin: (opts: AskPinOptions) => Promise<boolean>;
         /** Resolves true if the guest accepts, false if they reject. */
         askDisclaimer: (opts: AskDisclaimerOptions) => Promise<boolean>;
-        /** Close any open dialog as cancelled. */
+        /** Open the kiosk's Recent Captures window. */
+        showRecentCaptures: () => void;
+        /** Close any open dialog as cancelled, and Recent Captures. */
         closeAll: () => void;
       };
     };

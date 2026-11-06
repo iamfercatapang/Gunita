@@ -6,8 +6,6 @@ function makeFilename(ext = 'png') {
 
 $(document).ready(function() {
 
-    updateDashboardGallery();
-
     // --- Tabs ---
     $('.nav-item').on('click', function(e) {
         e.preventDefault();
@@ -1258,8 +1256,7 @@ $(document).ready(function() {
         }
 
         // Show recent captures button if there are any captures
-        const totalCaptures = capturedPhotos.length + capturedVideos.length;
-        $('#btn-recent-captures').toggle(totalCaptures > 0);
+        $('#btn-recent-captures').toggle(window.PB.captures.count() > 0);
 
         $('#guest-welcome').removeClass('hidden');
         // Resume welcome video if it was paused
@@ -1277,96 +1274,11 @@ $(document).ready(function() {
     }
 
     // ==================== RECENT CAPTURES KIOSK MODAL ====================
-    (function initRecentCapturesModal() {
-        let _rcmItems = []; // [{type:'photo'|'video', src:string}]
-        let _rcmIdx   = 0;
-
-        function _buildItems() {
-            _rcmItems = [];
-            capturedPhotos.forEach(function(src) { _rcmItems.push({ type: 'photo', src: src }); });
-            capturedVideos.forEach(function(src) { _rcmItems.push({ type: 'video', src: src }); });
-        }
-
-        function _openModal() {
-            _buildItems();
-            const $modal = $('#recent-captures-modal');
-            const $grid  = $('#rcm-grid').empty();
-            const $empty = $('#rcm-empty');
-            if (_rcmItems.length === 0) {
-                $empty.css('display', 'flex');
-                $grid.hide();
-            } else {
-                $empty.hide();
-                $grid.show();
-                _rcmItems.forEach(function(item, idx) {
-                    if (item.type === 'photo') {
-                        const $card = $('<div class="rcm-card" data-idx="' + idx + '"><img src="' + item.src + '" alt=""><div class="rcm-badge"><i class="fa-solid fa-camera"></i></div></div>');
-                        $grid.append($card);
-                    } else {
-                        const $card = $('<div class="rcm-card rcm-card-video" data-idx="' + idx + '"><video src="' + item.src + '" muted playsinline preload="metadata"></video><div class="rcm-badge"><i class="fa-solid fa-clapperboard"></i></div><div class="rcm-play-icon"><i class="fa-solid fa-play"></i></div></div>');
-                        $grid.append($card);
-                        // Seek to a frame for thumbnail
-                        const vid = $card.find('video')[0];
-                        vid.addEventListener('loadedmetadata', function() { vid.currentTime = Math.min(0.5, vid.duration * 0.1); }, { once: true });
-                    }
-                });
-            }
-            $modal.css('display', 'flex');
-        }
-
-        function _openLightbox(idx) {
-            _rcmIdx = idx;
-            _renderLightbox();
-            $('#rcm-lightbox').css('display', 'flex');
-        }
-
-        function _renderLightbox() {
-            const item = _rcmItems[_rcmIdx];
-            if (!item) return;
-            const $img   = $('#rcm-lb-img');
-            const $video = $('#rcm-lb-video');
-            if (item.type === 'photo') {
-                $video.hide().attr('src', '')[0].pause();
-                $img.attr('src', item.src).show();
-            } else {
-                $img.hide().attr('src', '');
-                $video.attr('src', item.src).show()[0].play();
-            }
-            $('#rcm-lb-counter').text((_rcmIdx + 1) + ' / ' + _rcmItems.length);
-            $('#btn-rcm-lb-prev').toggle(_rcmIdx > 0);
-            $('#btn-rcm-lb-next').toggle(_rcmIdx < _rcmItems.length - 1);
-        }
-
-        function _closeLightbox() {
-            $('#rcm-lb-video')[0].pause();
-            $('#rcm-lightbox').hide();
-        }
-
-        // Event bindings
-        $('#btn-recent-captures').on('click', function(e) {
-            e.stopPropagation();
-            _openModal();
-        });
-
-        $('#btn-close-rcm').on('click', function() {
-            _closeLightbox();
-            $('#recent-captures-modal').hide();
-        });
-
-        $(document).on('click', '.rcm-card', function() {
-            _openLightbox(parseInt($(this).data('idx'), 10));
-        });
-
-        $('#btn-rcm-lb-close').on('click', _closeLightbox);
-
-        $('#btn-rcm-lb-prev').on('click', function() {
-            if (_rcmIdx > 0) { _rcmIdx--; _renderLightbox(); }
-        });
-
-        $('#btn-rcm-lb-next').on('click', function() {
-            if (_rcmIdx < _rcmItems.length - 1) { _rcmIdx++; _renderLightbox(); }
-        });
-    })();
+    // The window itself is React (src/screens/galleries).
+    $('#btn-recent-captures').on('click', function(e) {
+        e.stopPropagation();
+        window.PB.ui.showRecentCaptures();
+    });
 
     // (DRIVE: making session folders public is handled by window.PB.drive.)
 
@@ -2075,10 +1987,7 @@ $(document).ready(function() {
 
         // Keep a blob URL in memory for gallery playback (intentionally not revoked)
         const galleryBlobUrl = URL.createObjectURL(blob);
-        capturedVideos.unshift(galleryBlobUrl);
-        capturedVideoDriveLinks.unshift(null); // will be updated after Drive upload completes
-        _evictOldCaptures();
-        updateDashboardGallery();
+        const captureId = window.PB.captures.add('video', galleryBlobUrl);
         // Broadcast thumbnail to Live Viewer peers (fire-and-forget)
         window.PB.liveViewer.host.broadcastVideo(galleryBlobUrl, filename);
 
@@ -2098,8 +2007,7 @@ $(document).ready(function() {
         if (appConfig.vgSaveDrive && window.PB.drive.isSignedIn()) {
             window.PB.drive.upload('video-guestbook', blob, filename).then(() => {
                 if (currentSessionFolderLink) {
-                    capturedVideoDriveLinks[0] = currentSessionFolderLink;
-                    _appendGalleryQrBtn(0, 'video', currentSessionFolderLink);
+                    window.PB.captures.setDriveUrl(captureId, currentSessionFolderLink);
                     window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                 }
             }).catch(e => console.warn('[Drive] VG upload failed:', e.message));
@@ -2534,21 +2442,7 @@ $(document).ready(function() {
         return window.PB.capture.drawPhoto(ctx, currentStream, video, x, y, slotW, slotH);
     }
 
-    // Cap how many captures are kept in the in-memory gallery to bound RAM growth.
-    // Files are already saved to disk/Drive; these arrays are only for the dashboard preview.
-    const MAX_GALLERY_PHOTOS = 30;
-    const MAX_GALLERY_VIDEOS = 10;
-    function _evictOldCaptures() {
-        while (capturedPhotos.length > MAX_GALLERY_PHOTOS) {
-            capturedPhotos.pop();           // data URL string — GC reclaims the memory
-            capturedPhotoDriveLinks.pop();
-        }
-        while (capturedVideos.length > MAX_GALLERY_VIDEOS) {
-            const old = capturedVideos.pop();
-            capturedVideoDriveLinks.pop();
-            if (old && old.startsWith('blob:')) URL.revokeObjectURL(old); // release the binary blob
-        }
-    }
+    // (The in-memory gallery and its size cap live in window.PB.captures.)
 
     async function processAndSaveImage(canvas, opts = {}) {
         $('#processing-overlay').fadeIn(200);
@@ -2568,10 +2462,7 @@ $(document).ready(function() {
 
         // SAVE IMAGE TO ADMIN DASHBOARD GALLERY
         const photoDataUrl = canvas.toDataURL('image/png', 0.8);
-        capturedPhotos.unshift(photoDataUrl);
-        capturedPhotoDriveLinks.unshift(null); // will be updated after Drive upload completes
-        _evictOldCaptures();
-        updateDashboardGallery();
+        const captureId = window.PB.captures.add('photo', photoDataUrl);
         // Broadcast to Live Viewer peers (fire-and-forget)
         window.PB.liveViewer.host.broadcastPhoto(photoDataUrl, filename);
 
@@ -2582,8 +2473,7 @@ $(document).ready(function() {
                     await window.PB.drive.upload('photo-booth', blob, filename);
                     console.log('[Drive] Uploaded:', filename);
                     if (currentSessionFolderLink) {
-                        capturedPhotoDriveLinks[0] = currentSessionFolderLink;
-                        _appendGalleryQrBtn(0, 'photo', currentSessionFolderLink);
+                        window.PB.captures.setDriveUrl(captureId, currentSessionFolderLink);
                         window.PB.liveViewer.host.broadcastDriveUpdate(filename, currentSessionFolderLink);
                     }
                 } catch (e) {
@@ -2762,211 +2652,7 @@ $(document).ready(function() {
         });
     }
 
-    // --- Dashboard Gallery UI Engine ---
-    function updateDashboardGallery() {
-        const total = capturedPhotos.length + capturedVideos.length;
-        $('#stat-captures').text(total);
-        $('#count-photos').text(capturedPhotos.length);
-        $('#count-videos').text(capturedVideos.length);
-
-        // --- Photo grid ---
-        const photoGrid = $('#dashboard-gallery-photo');
-        photoGrid.empty();
-        if (capturedPhotos.length === 0) {
-            photoGrid.append('<div class="empty-gallery">No photos yet. Launch the Kiosk to start a session!</div>');
-        } else {
-            capturedPhotos.slice(0, 8).forEach((src, index) => {
-                const num = capturedPhotos.length - index;
-                const driveLink = capturedPhotoDriveLinks[index] || null;
-                const qrBtn = driveLink
-                    ? `<button class="gallery-qr-btn" data-url="${driveLink}" title="Get QR code to download"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/><rect x="14" y="18" width="3" height="0"/></svg>QR</button>`
-                    : '';
-                photoGrid.append(`<div class="gallery-item" data-index="${index}" title="Photo #${num}"><img src="${src}" alt="Photo #${num}"><div class="overlay">Photo #${num}</div>${qrBtn}</div>`);
-            });
-        }
-
-        // --- Video grid ---
-        const videoGrid = $('#dashboard-gallery-video');
-        videoGrid.empty();
-        if (capturedVideos.length === 0) {
-            videoGrid.append('<div class="empty-gallery">No videos yet. Switch to Video Guestbook mode and record a message!</div>');
-        } else {
-            capturedVideos.slice(0, 8).forEach((src, index) => {
-                const num = capturedVideos.length - index;
-                const driveLink = capturedVideoDriveLinks[index] || null;
-                const qrBtn = driveLink
-                    ? `<button class="gallery-qr-btn" data-url="${driveLink}" title="Get QR code to download"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/><rect x="14" y="18" width="3" height="0"/></svg>QR</button>`
-                    : '';
-                videoGrid.append(`
-                    <div class="gallery-item gallery-item-video" data-vindex="${index}" title="Video #${num}">
-                        <video src="${src}" preload="metadata" muted playsinline></video>
-                        <div class="gallery-play-icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        </div>
-                        <div class="overlay">Video #${num}</div>
-                        ${qrBtn}
-                    </div>`);
-            });
-        }
-
-        // --- Dashboard gallery tab switching ---
-        $(document).off('click.galtabs').on('click.galtabs', '[data-gallery-tab]', function() {
-            const target = $(this).data('gallery-tab');
-            $(this).closest('.gallery-section').find('[data-gallery-tab]').removeClass('active');
-            $(this).addClass('active');
-            $(this).closest('.gallery-section').find('.gallery-tab-content').hide();
-            $('#' + target).show();
-        });
-    }
-
-    // Append (or show) a QR button on an existing gallery thumbnail without full re-render
-    function _appendGalleryQrBtn(arrIndex, type, driveLink) {
-        if (!driveLink) return;
-        const selector = type === 'video'
-            ? `.gallery-item[data-vindex="${arrIndex}"]`
-            : `.gallery-item[data-index="${arrIndex}"]`;
-        const $item = $(selector);
-        if ($item.length && !$item.find('.gallery-qr-btn').length) {
-            $item.append(`<button class="gallery-qr-btn" data-url="${driveLink}" title="Get QR code to download"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="3" height="3"/><rect x="18" y="18" width="3" height="3"/></svg>QR</button>`);
-        }
-    }
-
-    // --- Gallery lightbox ---
-    let _lightboxIdx = 0;
-    let _lightboxType = 'photo'; // 'photo' | 'video'
-
-    function _lightboxItems() {
-        return _lightboxType === 'video' ? capturedVideos : capturedPhotos;
-    }
-
-    function _renderLightbox() {
-        const items = _lightboxItems();
-        const isVideo = _lightboxType === 'video';
-        if (isVideo) {
-            $('#lightbox-img').hide();
-            const vid = $('#lightbox-video');
-            vid.attr('src', items[_lightboxIdx]).show();
-            vid[0].load();
-        } else {
-            $('#lightbox-video').hide().attr('src', '');
-            $('#lightbox-img').attr('src', items[_lightboxIdx]).show();
-        }
-        $('#lightbox-counter').text((_lightboxIdx + 1) + ' / ' + items.length);
-        $('#lightbox-prev').toggle(_lightboxIdx > 0);
-        $('#lightbox-next').toggle(_lightboxIdx < items.length - 1);
-    }
-    function openLightbox(idx) {
-        _lightboxType = 'photo';
-        _lightboxIdx = idx;
-        _renderLightbox();
-        $('#photo-lightbox').fadeIn(200);
-    }
-    function openVideoLightbox(idx) {
-        _lightboxType = 'video';
-        _lightboxIdx = idx;
-        _renderLightbox();
-        $('#photo-lightbox').fadeIn(200);
-    }
-    // QR button on gallery thumbnails — open Drive link directly
-    $(document).on('click', '.gallery-qr-btn', function(e) {
-        e.stopPropagation();
-        const url = $(this).data('url');
-        if (url) window.open(url, '_blank', 'noopener');
-    });
-    $(document).on('click', '.gallery-item:not(.gallery-item-video)', function() {
-        openLightbox(parseInt($(this).data('index')));
-    });
-    $(document).on('click', '.gallery-item.gallery-item-video', function() {
-        openVideoLightbox(parseInt($(this).data('vindex')));
-    });
-    $(document).on('click', '#lightbox-close, #photo-lightbox-backdrop', function() {
-        const vid = document.getElementById('lightbox-video');
-        if (vid) vid.pause();
-        $('#photo-lightbox').fadeOut(200);
-    });
-    $('#lightbox-prev').on('click', function(e) {
-        e.stopPropagation();
-        if (_lightboxIdx > 0) { _lightboxIdx--; _renderLightbox(); }
-    });
-    $('#lightbox-next').on('click', function(e) {
-        e.stopPropagation();
-        if (_lightboxIdx < _lightboxItems().length - 1) { _lightboxIdx++; _renderLightbox(); }
-    });
-
-    // --- Lightbox swipe (touch) ---
-    (function() {
-        let _tsX = null, _tsY = null;
-        const lb = document.getElementById('photo-lightbox');
-        lb.addEventListener('touchstart', function(e) {
-            _tsX = e.touches[0].clientX;
-            _tsY = e.touches[0].clientY;
-        }, { passive: true });
-        lb.addEventListener('touchend', function(e) {
-            if (_tsX === null) return;
-            const dx = e.changedTouches[0].clientX - _tsX;
-            const dy = e.changedTouches[0].clientY - _tsY;
-            _tsX = null; _tsY = null;
-            if (Math.abs(dx) < 50 || Math.abs(dy) > Math.abs(dx)) return;
-            const items = _lightboxItems();
-            if (dx < 0 && _lightboxIdx < items.length - 1) { _lightboxIdx++; _renderLightbox(); }
-            else if (dx > 0 && _lightboxIdx > 0) { _lightboxIdx--; _renderLightbox(); }
-        }, { passive: true });
-    })();
-
-    // --- Full gallery modal ---
-    function openGalleryModal() {
-        // Photo grid
-        const photoGrid = $('#gallery-modal-grid');
-        photoGrid.empty();
-        if (capturedPhotos.length === 0) {
-            photoGrid.append('<div class="empty-gallery">No photos captured yet.</div>');
-        } else {
-            capturedPhotos.forEach((src, idx) => {
-                const num = capturedPhotos.length - idx;
-                photoGrid.append(`<div class="gallery-modal-item" data-index="${idx}"><img src="${src}" alt="Photo #${num}"><div class="overlay">Photo #${num}</div></div>`);
-            });
-        }
-        // Video grid
-        const videoGrid = $('#gallery-modal-grid-video');
-        videoGrid.empty();
-        if (capturedVideos.length === 0) {
-            videoGrid.append('<div class="empty-gallery">No videos captured yet.</div>');
-        } else {
-            capturedVideos.forEach((src, idx) => {
-                const num = capturedVideos.length - idx;
-                videoGrid.append(`
-                    <div class="gallery-modal-item gallery-modal-item-video" data-vindex="${idx}" title="Video #${num}">
-                        <video src="${src}" preload="metadata" muted playsinline></video>
-                        <div class="gallery-play-icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                        </div>
-                        <div class="overlay">Video #${num}</div>
-                    </div>`);
-            });
-        }
-        const total = capturedPhotos.length + capturedVideos.length;
-        $('#gallery-modal-count').text('(' + total + ')');
-        $('#gallery-modal').fadeIn(200);
-
-        // Modal tab switching
-        $(document).off('click.modaltabs').on('click.modaltabs', '[data-modal-tab]', function() {
-            const target = $(this).data('modal-tab');
-            $('#gallery-modal').find('[data-modal-tab]').removeClass('active');
-            $(this).addClass('active');
-            $('.gallery-modal-tab-content').hide();
-            $('#' + target).show();
-        });
-    }
-    $('#btn-view-all-gallery').on('click', function(e) { e.preventDefault(); openGalleryModal(); });
-    $('#gallery-modal-close, #gallery-modal-backdrop').on('click', function() { $('#gallery-modal').fadeOut(200); });
-    $(document).on('click', '.gallery-modal-item:not(.gallery-modal-item-video)', function() {
-        $('#gallery-modal').fadeOut(150);
-        openLightbox(parseInt($(this).data('index')));
-    });
-    $(document).on('click', '.gallery-modal-item.gallery-modal-item-video', function() {
-        $('#gallery-modal').fadeOut(150);
-        openVideoLightbox(parseInt($(this).data('vindex')));
-    });
+    // (Dashboard gallery, "View all" and the lightbox are React: src/screens/galleries.)
 
     // --- Event Name handlers ---
     function _updateFilenamePreview() {

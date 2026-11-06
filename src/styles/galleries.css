@@ -1,0 +1,206 @@
+/* =============================================================================
+ * Galleries (Phase 4c)
+ * =============================================================================
+ *
+ * Rendered by src/screens/galleries. Tiles, grids and the admin lightbox are
+ * still styled in styles.css and admin.css. This file holds what used to be
+ * inline styles in index.html (same values) and the resets for tiles that
+ * are now real <button>s.
+ */
+
+/* ─── Tiles are buttons: drop the UA button look ──────────────────────────── */
+.gallery-item-open,
+.gallery-modal-item,
+.rcm-card {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.gallery-item-open {
+  height: 100%;
+}
+
+/* .gallery-modal-item had a border in styles.css; keep it after the reset. */
+.gallery-modal-item {
+  border: 1px solid #e5e7eb;
+}
+
+.gallery-item-open:focus-visible,
+.gallery-modal-item:focus-visible,
+.rcm-card:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+}
+
+/* "View all" opens a window, so it's a button styled as the link it was. */
+.gallery-view-all {
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* ─── Admin lightbox and "View all" backdrops ─────────────────────────────── */
+#photo-lightbox-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+#gallery-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Stands in for the jQuery fadeIn(200) these used to open with. */
+.gallery-fade-in {
+  animation: gallery-fade-in 200ms ease-out;
+}
+
+@keyframes gallery-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ─── Kiosk Recent Captures ───────────────────────────────────────────────── */
+#recent-captures-modal {
+  position: absolute;
+  inset: 0;
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.92);
+}
+
+#recent-captures-modal .rcm-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#rcm-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #f9fafb;
+}
+
+#btn-close-rcm,
+#btn-rcm-lb-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+#rcm-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem;
+  align-content: start;
+}
+
+#rcm-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: #6b7280;
+}
+
+#rcm-empty svg {
+  opacity: 0.4;
+}
+
+#rcm-empty p {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+#rcm-lightbox {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.97);
+}
+
+#btn-rcm-lb-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+#btn-rcm-lb-prev,
+#btn-rcm-lb-next {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+#btn-rcm-lb-prev {
+  left: 1rem;
+}
+
+#btn-rcm-lb-next {
+  right: 1rem;
+}
+
+#rcm-lb-img,
+#rcm-lb-video {
+  max-width: 90vw;
+  max-height: 80vh;
+  border-radius: 10px;
+}
+
+#rcm-lb-img {
+  object-fit: contain;
+}
+
+#rcm-lb-counter {
+  margin-top: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.88rem;
+}
+
+/* The badge inherited the kiosk's dark text colour and was near-invisible
+   on its dark background (before Phase 4c too). */
+.rcm-badge {
+  color: #fff;
+}
