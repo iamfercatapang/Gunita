@@ -51,16 +51,19 @@ Gunita started as one big `app.js`. It's being moved to typed modules a piece at
 - `src/lib/`: the typed modules.
   - `drive/`: Google Drive client and upload queue
   - `audio/`: mic monitor, Bluetooth output, beeps
-  - `devices/`: camera and mic lists
+  - `devices/`: camera and mic lists, published as state for the Capture Settings panel
   - `security/`: kiosk PIN
   - `live-viewer/`: PeerJS host and viewer
   - `capture/`: camera, frame compositing, saving files
 - `src/state/` and `src/constants/`: app settings, this session's captures (`captures.ts`, written by `app.js` through `window.PB.captures`) and the photo layouts.
+  - `settings.ts`: the settings store. `window.appConfig` is a watched copy of the settings, so any change (from React or `app.js`) re-renders the screens that use it and is saved to localStorage. Assign whole values; changing an array in place isn't noticed.
 - `src/screens/`: screens that have moved to React. Each renders into its container in `index.html` through `mountScreen` in `src/ui/mount.tsx`.
   - `live-viewer/`: the hosts' phone gallery, for `?viewer=` links.
   - `dialogs/`: the kiosk's PIN pad and disclaimer. `app.js` opens them with `await window.PB.ui.askPin(...)` / `askDisclaimer(...)`.
   - `galleries/`: Recent Captures on the dashboard (with "View all" and the lightbox) and on the kiosk.
   - `guest-flow/`: the "Take a photo too?" offer after a video, the done screen with the Drive QR code, and the prompts preview.
+  - `admin/`: the whole admin dashboard, sidebar and settings panels. Launch Kiosk calls `window.PB.kiosk.launch()`, which `app.js` provides.
+  - `welcome/`: the kiosk welcome screen. `app.js` shows and hides it with `window.PB.ui.showWelcome()` / `hideWelcome()`; starting a session and the exit button call `window.PB.kiosk`.
 
   React screens load as separate chunks after the page is up, so they never hold up the first paint.
 - `src/styles/`: design tokens (`tokens.css`, `themes.css`) and the redesigned screens.
@@ -77,6 +80,6 @@ CI runs lint, typecheck and build on every push and pull request to `main` and `
   - [x] 4b: PIN pad and disclaimer dialogs
   - [x] 4c: galleries and the shared captures list
   - [x] 4d: photo booth offer, done screen and prompts preview
-  - [ ] 4e: a settings store, then the admin panels and the welcome screen (its designer panel edits it live, so they move together)
+  - [x] 4e: the settings store, the admin dashboard and the welcome screen
   - [ ] 4f: photo booth capture and video recording
   - [ ] 4g: remove `app.js` and jQuery

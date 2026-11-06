@@ -26,8 +26,8 @@ export interface AppConfig {
   vgSaveDrive: boolean;
   vgOverlay: { objectUrl: string; img: HTMLImageElement } | null;
 
-  // Templates / framing
-  templateBg: { objectUrl: string; img: HTMLImageElement } | null;
+  // Templates / framing: the uploaded image itself, drawn behind the photos.
+  templateBg: HTMLImageElement | null;
 
   // Filename / camera
   eventName: string;
@@ -144,7 +144,7 @@ const defaultAppConfig: AppConfig = {
 // ─── Persisted keys ──────────────────────────────────────────────────────────
 // Media blobs and Drive tokens are intentionally excluded — they cannot be
 // JSON-serialised or should not be stored across sessions.
-const PERSISTED_KEYS: (keyof AppConfig)[] = [
+export const PERSISTED_KEYS: readonly (keyof AppConfig)[] = [
   'layout',
   'saveLocal',
   'saveDrive',
@@ -156,6 +156,8 @@ const PERSISTED_KEYS: (keyof AppConfig)[] = [
   'welcomeSubtitle',
   'photoMode',
   'captureMode',
+  'vgPanelTitle',
+  'vgCoupleName',
   'vgMaxDuration',
   'vgPromptText',
   'vgCountdown',
@@ -190,7 +192,10 @@ const PERSISTED_KEYS: (keyof AppConfig)[] = [
 ];
 
 // ─── Build the live appConfig and restore from localStorage ──────────────────
-const appConfig: AppConfig = { ...defaultAppConfig };
+// This is the raw object. Everything else reads and writes it through the
+// settings store (src/state/settings.ts), which notifies React on changes and
+// is what window.appConfig points at.
+export const appConfig: AppConfig = { ...defaultAppConfig };
 
 (function restorePersistedConfig() {
   try {
@@ -255,9 +260,7 @@ export function startNewSession(): string {
 // ─── Side effects: expose runtime state on window for legacy app.js ──────────
 // The legacy code reads/writes these as bare globals; without these
 // assignments, `app.js` cannot see the bindings (it is loaded as a
-// non-module script). When app.js is converted to modules in Phase 2,
-// these window assignments can be removed.
-window.appConfig = appConfig;
+// non-module script). window.appConfig is set by src/state/settings.ts.
 window.saveConfig = saveConfig;
 window._scheduleSave = _scheduleSave;
 window.generateSessionId = generateSessionId;

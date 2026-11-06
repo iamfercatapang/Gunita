@@ -6,487 +6,15 @@ function makeFilename(ext = 'png') {
 
 $(document).ready(function() {
 
-    // --- Tabs ---
-    $('.nav-item').on('click', function(e) {
-        e.preventDefault();
-        $('.nav-item').removeClass('active');
-        $(this).addClass('active');
-        $('.admin-panel').hide();
-        $('#' + $(this).data('target')).show();
-    });
+    // The admin dashboard and the welcome screen are React
+    // (src/screens/admin, src/screens/welcome), reading the settings store
+    // that window.appConfig is part of. What's left here is kiosk mode and
+    // the capture screens; React reaches it through window.PB.kiosk below.
 
-    // --- Dynamic Slider Syncing ---
-    $('#setting-cd-1').on('input', function() {
-        let val = $(this).val();
-        $('#val-cd-1').text(val);
-        appConfig.countdownFirst = parseInt(val);
-    });
-    
-    $('#setting-cd-others').on('input', function() {
-        let val = $(this).val();
-        $('#val-cd-others').text(val);
-        appConfig.countdownOthers = parseInt(val);
-    });
-
-    $('#setting-review').on('input', function() {
-        let val = $(this).val();
-        $('#val-review').text(val);
-        appConfig.reviewTime = parseInt(val);
-    });
-
-    // --- Storage (Photo Booth) — checkbox toggles (both local + drive can be active) ---
-    $('#chk-save-local').on('change', function() {
-        appConfig.saveLocal = this.checked;
-    });
-
-    $('#chk-save-drive').on('change', function() {
-        appConfig.saveDrive = this.checked;
-        _updateEventNameWarnings();
-    });
-
-    // --- Welcome Screen Designer ---
-    $('#edit-bg-color').on('input', function() {
-        let col = $(this).val();
-        appConfig.welcomeBg = col;
-        $('#color-hex').text(col);
-        // Only apply color when no media is active
-        if (!appConfig.welcomeMedia) {
-            $('#designer-preview').css('background-color', col);
-            $('#guest-welcome').css('background-color', col);
-        }
-    });
-
-    $('#edit-title').on('input', function() {
-        let txt = $(this).val();
-        appConfig.welcomeTitle = txt;
-        $('#prev-title').text(txt);
-        $('#live-ws-title').text(txt);
-    });
-
-    $('#edit-subtitle').on('input change', function() {
-        let txt = $(this).val();
-        appConfig.welcomeSubtitle = txt;
-        $('#prev-subtitle').text(txt);
-        $('#live-ws-subtitle').text(txt);
-    });
-
-    $('#edit-vg-panel-title').on('input', function() {
-        appConfig.vgPanelTitle = $(this).val();
-        const txt = appConfig.vgPanelTitle || 'Raise a Toast!';
-        $('#prev-vg-title').text(txt);
-        if (appConfig.captureMode === 'videoguestbook') {
-            $('#live-ws-title-vg').text(txt);
-        }
-    });
-
-    $('#edit-vg-couple-name').on('input', function() {
-        const name = $(this).val();
-        appConfig.vgCoupleName = name;
-        $('#vg-couple-name-preview').text(name || 'Ken & Alexa');
-        const sub = _getVgPanelSubtitle();
-        $('#prev-vg-subtitle').text(sub);
-        if (appConfig.captureMode === 'videoguestbook') {
-            $('#live-ws-subtitle-vg').text(sub);
-        }
-    });
-
-    // --- Welcome Screen Media Upload ---
-    function applyWelcomeMedia(file) {
-        if (appConfig.welcomeMedia) {
-            URL.revokeObjectURL(appConfig.welcomeMedia.objectUrl);
-        }
-        const objectUrl = URL.createObjectURL(file);
-        const type = file.type.startsWith('video/') ? 'video' : 'image';
-        appConfig.welcomeMedia = { type, objectUrl };
-
-        // Update upload zone thumb
-        const thumbWrap = $('#ws-media-thumb-wrap').empty();
-        if (type === 'video') {
-            thumbWrap.html(`<video src="${objectUrl}" class="ws-thumb-media" autoplay loop muted playsinline></video>`);
-        } else {
-            thumbWrap.html(`<img src="${objectUrl}" class="ws-thumb-media">`);
-        }
-        $('#ws-media-empty').hide();
-        $('#ws-media-filled').show();
-
-        // Update designer preview frame
-        if (type === 'video') {
-            $('#prev-media-img').hide().attr('src', '');
-            const pv = $('#prev-media-video').attr('src', objectUrl).show()[0];
-            pv.load(); pv.play();
-        } else {
-            $('#prev-media-video').hide().attr('src', '')[0].load();
-            $('#prev-media-img').attr('src', objectUrl).show();
-        }
-        $('#designer-preview').css('background-color', '');
-
-        // Update kiosk welcome screen
-        if (type === 'video') {
-            $('#ws-image-bg').hide().attr('src', '');
-            const kv = $('#ws-video-bg').attr('src', objectUrl).show()[0];
-            kv.load(); kv.play();
-        } else {
-            $('#ws-video-bg').hide().attr('src', '')[0].load();
-            $('#ws-image-bg').attr('src', objectUrl).show();
-        }
-        $('#guest-welcome').css('background-color', '');
-    }
-
-    function clearWelcomeMedia() {
-        if (appConfig.welcomeMedia) {
-            URL.revokeObjectURL(appConfig.welcomeMedia.objectUrl);
-            appConfig.welcomeMedia = null;
-        }
-        // Reset preview
-        $('#prev-media-img').hide().attr('src', '');
-        const pv = $('#prev-media-video').hide().attr('src', '')[0];
-        if (pv) { pv.load(); }
-        $('#designer-preview').css('background-color', appConfig.welcomeBg);
-        // Reset kiosk
-        $('#ws-image-bg').hide().attr('src', '');
-        const kv = $('#ws-video-bg').hide().attr('src', '')[0];
-        if (kv) { kv.load(); }
-        $('#guest-welcome').css('background-color', appConfig.welcomeBg);
-        // Reset upload zone
-        $('#ws-media-empty').show();
-        $('#ws-media-filled').hide();
-        $('#ws-media-thumb-wrap').empty();
-        $('#ws-media-input').val('');
-    }
-
-    // Click on upload zone opens file picker
-    $('#ws-media-drop').on('click', function(e) {
-        if (!$(e.target).closest('#ws-media-remove, #btn-pick-ws-media').length) {
-            document.getElementById('ws-media-input').click();
-        }
-    });
-    // File selected via input
-    $('#ws-media-input').on('change', function() {
-        const file = this.files[0];
-        if (file) applyWelcomeMedia(file);
-    });
-
-    // Drag and drop
-    $('#ws-media-drop').on('dragover dragenter', function(e) {
-        e.preventDefault(); e.stopPropagation();
-        $(this).addClass('drag-over');
-    }).on('dragleave drop', function(e) {
-        e.preventDefault(); e.stopPropagation();
-        $(this).removeClass('drag-over');
-        if (e.type === 'drop') {
-            const file = e.originalEvent.dataTransfer.files[0];
-            if (file && (file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-                applyWelcomeMedia(file);
-            }
-        }
-    });
-
-    // Remove media
-    $('#ws-media-remove').on('click', function(e) {
-        e.stopPropagation();
-        clearWelcomeMedia();
-    });
-
-    // --- Photo Mode Toggle ---
-    $('#toggle-photo-mode').on('change', function() {
-        appConfig.photoMode = $(this).is(':checked');
-        const label = appConfig.photoMode ? 'ON' : 'OFF';
-        $('#toggle-photo-label').text(label);
-        $(this).closest('.toggle-switch').toggleClass('is-on', appConfig.photoMode);
-    });
-
-    // --- Disclaimer — helpers ---
-    const DEFAULT_DISCLAIMER_TEXT = appConfig.disclaimerText;
-
+    // --- Disclaimer ---
     function _renderDisclaimerText(text, org) {
         return text.replace(/\{Name of Organization\}/g, org || 'the Organisation');
     }
-
-    // --- Disclaimer — shared admin settings ---
-    (function initDisclaimer() {
-        $('#disclaimer-header').val(appConfig.disclaimerHeader);
-        $('#disclaimer-org').val(appConfig.disclaimerOrg);
-        $('#disclaimer-text').val(appConfig.disclaimerText);
-
-        function _sync() {
-            const on = appConfig.disclaimerEnabled;
-            $('#toggle-disclaimer').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-disclaimer-label').text(on ? 'ON' : 'OFF');
-            $('#disclaimer-config').toggle(on);
-        }
-        _sync();
-
-        $('#toggle-disclaimer').on('change', function() {
-            appConfig.disclaimerEnabled = this.checked;
-            $('#toggle-disclaimer-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-            $('#disclaimer-config').toggle(this.checked);
-        });
-        $('#disclaimer-org').on('input', function() { appConfig.disclaimerOrg = this.value; });
-        $('#disclaimer-header').on('input', function() { appConfig.disclaimerHeader = this.value || 'Media Release Agreement'; });
-        $('#disclaimer-text').on('input', function() { appConfig.disclaimerText = this.value; });
-    })();
-
-    // --- Prompts — Video Guestbook admin settings ---
-    (function initVgPrompts() {
-        function _enabledCount() {
-            const builtIn  = PROMPT_TEMPLATES[appConfig.vgPromptCategory] || [];
-            const disabled = appConfig.vgDisabledTemplatePrompts;
-            const tplEnabled = builtIn.filter(function(q) { return disabled.indexOf(q) === -1; }).length;
-            const cusEnabled = appConfig.vgCustomPrompts.filter(function(p) { return p.enabled; }).length;
-            return tplEnabled + cusEnabled;
-        }
-
-        function _toggle(checked) {
-            return '<label class="vg-prompt-toggle-wrap">' +
-                '<input type="checkbox" class="vg-prompt-toggle"' + (checked ? ' checked' : '') + '>' +
-                '<span class="vg-prompt-toggle-pill"></span>' +
-                '</label>';
-        }
-
-        function _renderPromptList() {
-            const builtIn  = PROMPT_TEMPLATES[appConfig.vgPromptCategory] || [];
-            const custom   = appConfig.vgCustomPrompts;
-            const disabled = appConfig.vgDisabledTemplatePrompts;
-
-            $('#vg-prompts-count').text('(' + _enabledCount() + ' enabled)');
-
-            const $list = $('#vg-prompts-list').empty();
-            builtIn.forEach(function(q) {
-                const isEnabled = disabled.indexOf(q) === -1;
-                $list.append(
-                    '<li class="vg-prompt-item' + (isEnabled ? '' : ' is-disabled') + '" data-type="template" data-key="' + encodeURIComponent(q) + '">' +
-                    _toggle(isEnabled) +
-                    '<span class="vg-prompt-badge">Template</span>' +
-                    '<span class="vg-prompt-text">' + $('<span>').text(q).html() + '</span>' +
-                    '</li>'
-                );
-            });
-            custom.forEach(function(p, i) {
-                $list.append(
-                    '<li class="vg-prompt-item' + (p.enabled ? '' : ' is-disabled') + '" data-type="custom" data-idx="' + i + '">' +
-                    _toggle(p.enabled) +
-                    '<span class="vg-prompt-badge vg-prompt-badge-custom">Custom</span>' +
-                    '<span class="vg-prompt-text">' + $('<span>').text(p.text).html() + '</span>' +
-                    '<button class="vg-prompt-del" data-idx="' + i + '" title="Remove">\u2715</button>' +
-                    '</li>'
-                );
-            });
-
-            $list.find('.vg-prompt-toggle').on('change', function() {
-                const $li = $(this).closest('.vg-prompt-item');
-                const on  = this.checked;
-                $li.toggleClass('is-disabled', !on);
-                if ($li.data('type') === 'template') {
-                    const q   = decodeURIComponent($li.data('key'));
-                    const idx = appConfig.vgDisabledTemplatePrompts.indexOf(q);
-                    if (on  && idx !== -1) appConfig.vgDisabledTemplatePrompts.splice(idx, 1);
-                    if (!on && idx === -1) appConfig.vgDisabledTemplatePrompts.push(q);
-                } else {
-                    appConfig.vgCustomPrompts[parseInt($li.data('idx'), 10)].enabled = on;
-                }
-                $('#vg-prompts-count').text('(' + _enabledCount() + ' enabled)');
-                _scheduleSave();
-            });
-
-            $list.find('.vg-prompt-del').on('click', function() {
-                appConfig.vgCustomPrompts.splice(parseInt($(this).data('idx'), 10), 1);
-                _renderPromptList();
-                _scheduleSave();
-            });
-        }
-
-        function _syncToggle() {
-            const on = appConfig.vgPromptsEnabled;
-            $('#toggle-vg-prompts').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-vg-prompts-label').text(on ? 'ON' : 'OFF');
-            $('#vg-prompts-config').toggle(on);
-            $('#prev-vg-prompts-chip').toggle(on);
-        }
-
-        _syncToggle();
-        _renderPromptList();
-
-        // Splash screen duration slider
-        $('#setting-vg-splash-duration').val(appConfig.vgSplashDuration).on('input', function() {
-            appConfig.vgSplashDuration = parseInt(this.value, 10);
-            $('#val-vg-splash-duration').text(this.value);
-            _scheduleSave();
-        });
-        $('#val-vg-splash-duration').text(appConfig.vgSplashDuration);
-
-        $('#toggle-vg-prompts').on('change', function() {
-            appConfig.vgPromptsEnabled = this.checked;
-            $('#toggle-vg-prompts-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-            $('#vg-prompts-config').toggle(this.checked);
-            $('#prev-vg-prompts-chip').toggle(this.checked);
-        });
-
-        $(document).on('click', '.prompt-cat-btn', function() {
-            const cat = $(this).data('cat');
-            appConfig.vgPromptCategory = cat;
-            $('.prompt-cat-btn').removeClass('active');
-            $(this).addClass('active');
-            _renderPromptList();
-            _scheduleSave();
-        });
-
-        function _addCustomPrompt() {
-            const val = $('#vg-custom-prompt-input').val().trim();
-            if (!val) return;
-            appConfig.vgCustomPrompts.push({ text: val, enabled: true });
-            $('#vg-custom-prompt-input').val('');
-            _renderPromptList();
-            _scheduleSave();
-        }
-
-        $('#btn-add-vg-prompt').on('click', _addCustomPrompt);
-        $('#vg-custom-prompt-input').on('keydown', function(e) {
-            if (e.key === 'Enter') _addCustomPrompt();
-        });
-    })();
-
-    // --- Thank You Screen — Video Guestbook admin settings ---
-    (function initVgThankYou() {
-        function _syncToggle() {
-            const on = appConfig.vgThankYouEnabled;
-            $('#toggle-vg-thankyou').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-vg-thankyou-label').text(on ? 'ON' : 'OFF');
-            $('#vg-thankyou-config').toggle(on);
-            // Keep this panel accessible regardless of current capture mode.
-            $('#nav-vg-thankyou').show();
-        }
-
-        function _applyTyImage(file) {
-            if (appConfig.vgThankYouImage) {
-                URL.revokeObjectURL(appConfig.vgThankYouImage.objectUrl);
-            }
-            const objectUrl = URL.createObjectURL(file);
-            appConfig.vgThankYouImage = { objectUrl };
-
-            // Thumb in upload zone
-            $('#ty-media-thumb-wrap').html('<img src="' + objectUrl + '" style="width:100%; height:100%; object-fit:cover;">');
-            $('#ty-media-empty').hide();
-            $('#ty-media-filled').show();
-
-            // Preview frame
-            $('#ty-preview-bg').attr('src', objectUrl).show();
-            $('#ty-preview-frame').addClass('has-bg');
-        }
-
-        function _clearTyImage() {
-            if (appConfig.vgThankYouImage) {
-                URL.revokeObjectURL(appConfig.vgThankYouImage.objectUrl);
-                appConfig.vgThankYouImage = null;
-            }
-            $('#ty-media-thumb-wrap').empty();
-            $('#ty-media-filled').hide();
-            $('#ty-media-empty').show();
-            $('#ty-media-input').val('');
-            $('#ty-preview-bg').attr('src', '').hide();
-            $('#ty-preview-frame').removeClass('has-bg');
-        }
-
-        // Duration slider
-        $('#setting-ty-duration').val(appConfig.vgThankYouDuration).on('input', function() {
-            appConfig.vgThankYouDuration = parseInt(this.value, 10);
-            $('#val-ty-duration').text(this.value);
-        });
-        $('#val-ty-duration').text(appConfig.vgThankYouDuration);
-
-        // Toggle
-        _syncToggle();
-        $('#toggle-vg-thankyou').on('change', function() {
-            appConfig.vgThankYouEnabled = this.checked;
-            $('#toggle-vg-thankyou-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-            $('#vg-thankyou-config').toggle(this.checked);
-        });
-
-        // File picker
-        $('#ty-media-drop').on('click', function(e) {
-            if ($(e.target).closest('#ty-media-remove, #ty-media-filled, #btn-pick-ty-media').length) return;
-            document.getElementById('ty-media-input').click();
-        });
-        $('#ty-media-input').on('change', function() {
-            const file = this.files[0];
-            if (file) _applyTyImage(file);
-        });
-        $('#ty-media-drop').on('dragover dragenter', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            $(this).addClass('drag-over');
-        }).on('dragleave dragend drop', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            $(this).removeClass('drag-over');
-            if (e.type === 'drop') {
-                const file = e.originalEvent.dataTransfer.files[0];
-                if (file && file.type.startsWith('image/')) _applyTyImage(file);
-            }
-        });
-        $('#ty-media-remove').on('click', function(e) {
-            e.stopPropagation();
-            _clearTyImage();
-        });
-
-    })();
-
-    // --- Capture Review toggle — Video Guestbook ---
-    (function initVgCaptureReview() {
-        function _syncToggle() {
-            const on = appConfig.vgCaptureReviewEnabled;
-            $('#toggle-vg-capture-review').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-vg-capture-review-label').text(on ? 'ON' : 'OFF');
-        }
-        _syncToggle();
-        $('#toggle-vg-capture-review').on('change', function() {
-            appConfig.vgCaptureReviewEnabled = this.checked;
-            $('#toggle-vg-capture-review-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-        });
-    })();
-
-    // --- Photo Booth offer toggle — Video Guestbook ---
-    (function initVgOfferPb() {
-        function _syncToggle() {
-            const on = appConfig.vgOfferPb;
-            $('#toggle-vg-offer-pb').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-vg-offer-pb-label').text(on ? 'ON' : 'OFF');
-            $('#photo-offer-config').toggle(on);
-        }
-        _syncToggle();
-        $('#toggle-vg-offer-pb').on('change', function() {
-            appConfig.vgOfferPb = this.checked;
-            $('#toggle-vg-offer-pb-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-            $('#photo-offer-config').toggle(this.checked);
-            _scheduleSave();
-        });
-    })();
-
-    // --- Photo Booth Splash Screen toggle + duration slider ---
-    (function initPbSplash() {
-        function _syncToggle() {
-            const on = appConfig.pbSplashEnabled;
-            $('#toggle-pb-splash').prop('checked', on).closest('.toggle-switch').toggleClass('is-on', on);
-            $('#toggle-pb-splash-label').text(on ? 'ON' : 'OFF');
-            $('#pb-splash-config').toggle(on);
-        }
-        _syncToggle();
-        $('#toggle-pb-splash').on('change', function() {
-            appConfig.pbSplashEnabled = this.checked;
-            $('#toggle-pb-splash-label').text(this.checked ? 'ON' : 'OFF');
-            $(this).closest('.toggle-switch').toggleClass('is-on', this.checked);
-            $('#pb-splash-config').toggle(this.checked);
-            _scheduleSave();
-        });
-        $('#setting-pb-splash-duration').val(appConfig.pbSplashDuration).on('input', function() {
-            appConfig.pbSplashDuration = parseInt(this.value, 10);
-            $('#val-pb-splash-duration').text(this.value);
-            _scheduleSave();
-        });
-        $('#val-pb-splash-duration').text(appConfig.pbSplashDuration);
-    })();
 
     // Opens the disclaimer (a React dialog); resolves true if accepted.
     function showDisclaimerDialog(header, text, org) {
@@ -496,577 +24,54 @@ $(document).ready(function() {
         });
     }
 
-    // Keep template preview synced when layout changes
-    $('input[name="layout"]').on('change', function() {
-        updateTemplateSizeHint();
-    });
-    updateTemplateSizeHint();
-
-    // --- Photo Template Image Upload ---
-    async function loadImageFromFile(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.onload  = () => resolve(img);
-                img.onerror = reject;
-                img.src = e.target.result;
-            };
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-        });
-    }
-
-    async function applyBgImage(file) {
-        try {
-            const img = await loadImageFromFile(file);
-            appConfig.templateBg = img;
-            $('#bg-thumb').attr('src', img.src);
-            $('#bg-filename').text(file.name);
-            $('#bg-dims').text(img.naturalWidth + ' × ' + img.naturalHeight + ' px');
-            $('#bg-empty-state').hide();
-            $('#bg-preview-state').show();
-            drawTemplatePreview();
-        } catch(e) { console.error('Failed to load background image', e); }
-    }
-
-    $('#bg-empty-state').on('click', function(e) {
-        if (!$(e.target).closest('button, label').length) $('#upload-template-bg').click();
-    });
-    $('#upload-template-bg').on('change', async function() {
-        if (this.files[0]) await applyBgImage(this.files[0]);
-        this.value = '';
-    });
-    $('#btn-clear-bg').on('click', function() {
-        appConfig.templateBg = null;
-        $('#bg-preview-state').hide();
-        $('#bg-empty-state').show();
-        drawTemplatePreview();
-    });
-
-    // Drag-and-drop on background upload zone
-    const bgZone = document.getElementById('bg-upload-zone');
-    if (bgZone) {
-        bgZone.addEventListener('dragover', e => { e.preventDefault(); bgZone.classList.add('drag-over'); });
-        bgZone.addEventListener('dragleave', () => bgZone.classList.remove('drag-over'));
-        bgZone.addEventListener('drop', async e => {
-            e.preventDefault();
-            bgZone.classList.remove('drag-over');
-            const file = e.dataTransfer.files[0];
-            if (!file || !file.type.match(/image\/(jpeg|png)/)) return;
-            await applyBgImage(file);
-        });
-    }
-
-    // =====================================================================
-    // GOOGLE DRIVE — handled by window.PB.drive (src/lib/drive)
-    // =====================================================================
-    // The unified DriveClient owns OAuth, folder caching, upload retry,
-    // bounded concurrency, and an IndexedDB-backed offline queue.
-    // The UI handlers below thinly wrap that client.
-
-    // (Folder/event/session-folder management lives in window.PB.drive.)
-
-    // ─── DRIVE UI HANDLERS ────────────────────────────────────────────────────
-    // Folder/event/session creation, OAuth, retry, offline queue all live in
-    // window.PB.drive (src/lib/drive). The handlers here just wire DOM inputs
-    // to that client and update the local status banner.
-
-    function _vgDriveSetStatus(msg, isErr = false) {
-        const el = document.getElementById('vg-drive-auth-status');
-        if (el) { el.innerHTML = msg; el.style.color = isErr ? '#dc2626' : '#6b7280'; }
-    }
-
-    $('#vg-drive-folder-name').on('input', function() {
-        appConfig.vgDriveFolderName = this.value.trim() || 'Video Guestbook Captures';
-        window.PB.drive.invalidateFolders('video-guestbook');
-    });
-
-    $('#vg-drive-client-id').on('input', function() {
-        appConfig.vgDriveClientId = this.value.trim();
-        window.PB.drive.signOut();
-    });
-
-    $('#btn-vg-drive-signin').on('click', async function() {
-        const btn = $(this);
-        btn.prop('disabled', true).text('Signing in…');
-        _vgDriveSetStatus('');
-        try {
-            await window.PB.drive.getToken({ forcePrompt: true });
-            _vgDriveSetStatus('<i class="fa-solid fa-check"></i> Connected — captures will upload automatically', false);
-            btn.hide();
-            $('#btn-vg-drive-signout').show();
-            // Best-effort: flush any uploads that queued offline last session.
-            window.PB.drive.flushQueue().catch(() => {});
-        } catch (e) {
-            _vgDriveSetStatus('Sign-in failed: ' + e.message, true);
-        } finally {
-            btn.prop('disabled', false).text('Sign in with Google');
-        }
-    });
-
-    $('#btn-vg-drive-signout').on('click', function() {
-        window.PB.drive.signOut();
-        $(this).hide();
-        $('#btn-vg-drive-signin').show();
-        _vgDriveSetStatus('Signed out', false);
-    });
-
-    // ─── PB CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
-    // Enumeration, preview lifecycle, USB-prefer heuristic all live in
-    // window.PB.devices.
-
-    $('#camera-select').on('change', function() {
-        appConfig.selectedCameraId = this.value;
-    });
-
-    $('#btn-test-camera').on('click', () => window.PB.devices.toggleCameraTest('pb'));
-    $('#btn-stop-camera-test').on('click', () => window.PB.devices.stopCameraTest('pb'));
-
-    // --- Video Guestbook Settings ---
-    $('#setting-vg-duration').on('input', function() {
-        appConfig.vgMaxDuration = parseInt(this.value, 10);
-        $('#val-vg-duration').text(this.value);
-    });
-    $('#setting-vg-countdown').on('input', function() {
-        appConfig.vgCountdown = parseInt(this.value, 10);
-        $('#val-vg-countdown').text(this.value);
-    });
-    $('#setting-vg-prompt').on('input', function() {
-        appConfig.vgPromptText = this.value;
-    });
-
-    // ─── VG CAMERA SELECTION + TEST PREVIEW ──────────────────────────────────
-    $('#vg-camera-select').on('change', function() {
-        appConfig.vgSelectedCameraId = this.value;
-    });
-
-    $('#btn-refresh-vg-cameras').on('click', function() {
-        const btn = $(this);
-        btn.prop('disabled', true).text('Refreshing…');
-        window.PB.devices.populateCameraList('vg').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
-    });
-
-    $('#btn-test-vg-camera').on('click', () => window.PB.devices.toggleCameraTest('vg'));
-    $('#btn-stop-vg-camera-test').on('click', () => window.PB.devices.stopCameraTest('vg'));
-
-    // ─── VG AUDIO DEVICE SELECTION (mic + speaker) ───────────────────────────
-
-    $('#vg-mic-select').on('change', function() {
-        appConfig.vgSelectedMicId = this.value;
-        _scheduleSave();
-    });
-
-    $('#vg-speaker-select').on('change', function() {
-        appConfig.vgSelectedSpeakerId = this.value;
-        _scheduleSave();
-    });
-
-    $('#btn-refresh-vg-audio').on('click', function() {
-        const btn = $(this);
-        btn.prop('disabled', true).text('Refreshing…');
-        window.PB.devices.populateAudioDeviceList().finally(() => btn.prop('disabled', false).text('↺ Refresh'));
-    });
-
-    // --- VG Storage — checkbox toggles (both local + drive can be active) ---
-    $('#chk-vg-save-local').on('change', function() {
-        appConfig.vgSaveLocal = this.checked;
-        if (this.checked) {
-            $('#vg-local-folder-config').slideDown();
-        } else {
-            $('#vg-local-folder-config').slideUp();
-        }
-    });
-
-    $('#chk-vg-save-drive').on('change', function() {
-        appConfig.vgSaveDrive = this.checked;
-        if (this.checked) {
-            $('#vg-drive-config').slideDown();
-        } else {
-            $('#vg-drive-config').slideUp();
-        }
-        _updateEventNameWarnings();
-    });
-
-    $('#btn-vg-select-dir').on('click', async function() {
-        try {
-            if (!window.showDirectoryPicker) {
-                alert("Your browser does not support seamless folder saving. Files will be saved via standard downloads.");
-                return;
-            }
-            directoryHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-            $('#vg-dir-status').text(`Saving to: /${directoryHandle.name}`);
-        } catch (err) {
-            console.log("Directory picker cancelled or failed.", err);
-        }
-    });
-
-    // ── On-device saves (iPad / iPhone) ──────────────────────────────────────
-    // Safari on iOS/iPadOS has no folder picker, so captures are kept in the
-    // app's own storage (window.PB.capture.deviceStore) and exported from the
-    // Local Folder box. Other browsers never show this box.
-    const _ds = window.PB.capture.deviceStore;
-    // The next export batch is loaded ahead of time: iOS only opens the share
-    // sheet when navigator.share() runs straight from the tap.
-    let _dsBatch = { ids: [], files: [] };
-
-    function _fmtBytes(n) {
-        if (n == null) return '–';
-        if (n >= 1e9) return (n / 1e9).toFixed(1) + ' GB';
-        if (n >= 1e6) return Math.round(n / 1e6) + ' MB';
-        return Math.max(1, Math.round(n / 1e3)) + ' KB';
-    }
-
-    async function refreshDeviceStore() {
-        if (!_ds.shouldUseDeviceStore()) return;
-        try {
-            const s = await _ds.summary();
-            _dsBatch = await _ds.nextExportBatch();
-            $('#ds-pending').text(s.pending);
-            $('#ds-exported').text(s.exported);
-            $('#ds-used').text(_fmtBytes(s.bytes));
-            $('#ds-free').text(_fmtBytes(s.freeBytes));
-            const n = _dsBatch.files.length;
-            $('#btn-ds-export')
-                .prop('disabled', n === 0)
-                .text(n === 0 ? 'Nothing to export'
-                    : s.pending > n ? `Export next ${n} of ${s.pending}`
-                    : `Export ${n} file${n === 1 ? '' : 's'}`);
-            $('#btn-ds-clear')
-                .prop('disabled', s.exported === 0)
-                .text(s.exported ? `Clear ${s.exported} exported` : 'Clear exported');
-            $('#ds-persist-note')
-                .toggle(s.persisted === false)
-                .text('Add Gunita to the Home Screen (Share → Add to Home Screen) and run it from there, so iPadOS keeps these files until you export them.');
-        } catch (err) {
-            console.warn('[DeviceStore] Could not read saved captures:', err);
-        }
-    }
-
-    if (_ds.shouldUseDeviceStore()) {
-        $('#local-folder-picker').hide();
-        $('#device-store-box').show();
-        $('#lbl-vg-save-local .save-dest-title').text('On this device');
-        refreshDeviceStore();
-        // Captures happen in kiosk mode; refresh whenever the admin comes back.
-        $(document).on('click', '.nav-item', refreshDeviceStore);
-    }
-
-    $('#btn-ds-export').on('click', function() {
-        const btn = $(this);
-        btn.prop('disabled', true);
-        // No await before exportBatch(): it calls navigator.share() first thing.
-        _ds.exportBatch(_dsBatch).then(function(r) {
-            if (r.status === 'shared' || r.status === 'downloaded') {
-                const verb = r.status === 'shared' ? 'Exported' : 'Downloaded';
-                $('#ds-message').text(`${verb} ${r.count} file${r.count === 1 ? '' : 's'}.` +
-                    (r.remaining ? ` ${r.remaining} still to export: tap Export again.` : ' Everything is exported.'));
-            } else if (r.status === 'cancelled') {
-                $('#ds-message').text('Export cancelled. Nothing was marked as exported.');
-            }
-        }).catch(function(err) {
-            console.error('[DeviceStore] Export failed:', err);
-            $('#ds-message').text('Export failed: ' + (err.message || err.name) + '. Your files are still saved on this device.');
-        }).finally(refreshDeviceStore);
-    });
-
-    $('#btn-ds-clear').on('click', async function() {
-        const count = $('#ds-exported').text();
-        if (!confirm(`Delete ${count} exported file(s) from this device? Make sure they arrived in Files or Photos first. Files you haven't exported are kept.`)) return;
-        try {
-            const removed = await _ds.clearExported();
-            $('#ds-message').text(`Cleared ${removed} exported file${removed === 1 ? '' : 's'}.`);
-        } catch (err) {
-            $('#ds-message').text('Could not clear files: ' + (err.message || err.name));
-        }
-        refreshDeviceStore();
-    });
-
-    // Populate VG camera and audio device lists on load
-    window.PB.devices.populateCameraList('vg');
-    window.PB.devices.populateAudioDeviceList();
-
-    // --- Advanced nav visibility ---
-    function updateAdvancedNavForMode(mode) {
-        $('#nav-photo-layout, #nav-template, #nav-video-overlay, #nav-vg-thankyou, #nav-vg-prompts').show();
-    }
-
-    // --- Video Overlay upload ---
-    // The #btn-pick-vg-overlay label already opens the file picker natively (safe on mobile).
-    // The drop-zone click handler only fires when clicking elsewhere on the drop zone.
-    $('#vg-overlay-drop').on('click', function(e) {
-        // Let label, remove button, and thumb handle themselves
-        if ($(e.target).closest('#btn-pick-vg-overlay, #vg-overlay-remove').length) return;
-        $('#vg-overlay-input').trigger('click');
-    });
-
-    $('#vg-overlay-input').on('change', function() {
-        const file = this.files[0];
-        this.value = '';
-        if (!file) return;
-        if (file.type !== 'image/png') {
-            _showOverlayError('Please select a PNG file.');
-            return;
-        }
-        const url = URL.createObjectURL(file);
-        const testImg = new Image();
-        testImg.onload = function() {
-            if (testImg.naturalWidth !== 1920 || testImg.naturalHeight !== 1080) {
-                URL.revokeObjectURL(url);
-                _showOverlayError(`Image must be exactly 1920 × 1080 px (yours is ${testImg.naturalWidth} × ${testImg.naturalHeight} px).`);
-                return;
-            }
-            _applyVgOverlay(url, file.name, testImg);
-        };
-        testImg.onerror = function() {
-            URL.revokeObjectURL(url);
-            _showOverlayError('Could not read the image. Please try another file.');
-        };
-        testImg.src = url;
-    });
-
-    // Drag-and-drop on overlay drop zone
-    $('#vg-overlay-drop').on('dragover', function(e) { e.preventDefault(); $(this).addClass('drag-over'); });
-    $('#vg-overlay-drop').on('dragleave drop', function(e) { e.preventDefault(); $(this).removeClass('drag-over'); });
-    $('#vg-overlay-drop').on('drop', function(e) {
-        const file = e.originalEvent.dataTransfer.files[0];
-        if (!file) return;
-        $('#vg-overlay-input')[0].files;  // clear
-        // Reuse input change logic via synthetic assignment
-        const dt = new DataTransfer();
-        dt.items.add(file);
-        const inp = document.getElementById('vg-overlay-input');
-        inp.files = dt.files;
-        $(inp).trigger('change');
-    });
-
-    $('#vg-overlay-remove').on('click', function(e) {
-        e.stopPropagation();
-        if (appConfig.vgOverlay) {
-            URL.revokeObjectURL(appConfig.vgOverlay.objectUrl);
-            appConfig.vgOverlay = null;
-        }
-        $('#vg-overlay-filled').hide();
-        $('#vg-overlay-empty').show();
-        $('#vg-overlay-thumb').attr('src', '');
-        $('#vg-overlay-live').hide().attr('src', '');
-        _clearOverlayError();
-    });
-
-    function _applyVgOverlay(url, filename, img) {
-        if (appConfig.vgOverlay) URL.revokeObjectURL(appConfig.vgOverlay.objectUrl);
-        appConfig.vgOverlay = { objectUrl: url, img };
-        $('#vg-overlay-thumb').attr('src', url);
-        $('#vg-overlay-filename').text(filename);
-        $('#vg-overlay-empty').hide();
-        $('#vg-overlay-filled').show();
-        _clearOverlayError();
-    }
-
-    function _showOverlayError(msg) {
-        $('#vg-overlay-error').text(msg).show();
-    }
-    function _clearOverlayError() {
-        $('#vg-overlay-error').hide().text('');
-    }
-
-    $('#btn-refresh-cameras').on('click', function() {
-        const btn = $(this);
-        btn.prop('disabled', true).text('Refreshing…');
-        window.PB.devices.populateCameraList('pb').finally(() => btn.prop('disabled', false).text('↺ Refresh'));
-    });
-
-    // Populate on load (non-blocking)
-    window.PB.devices.populateCameraList('pb');
-
     // --- Launch Kiosk ---
-    // Mobile duplicate button delegates to the main launch button
-    $('#btn-launch-booth-mobile').on('click', function() { $('#btn-launch-booth').trigger('click'); });
-
-    $('#btn-launch-booth').on('click', async function() {
-        appConfig.layout = $('input[name="layout"]:checked').val();
-        const launchBtn = $(this);
-        launchBtn.prop('disabled', true).text('Initializing Hardware...');
+    // Called by the admin dashboard's Launch button. Rejects with the camera
+    // error if the camera can't be opened; the dashboard shows it.
+    async function launchKiosk() {
         window.PB.devices.stopAllCameraTests(); // release any preview streams before launching
         window.PB.ui.preload(); // load the PIN pad and disclaimer before a guest needs them
 
-        try {
-        // ── getUserMedia path ─────────────────────────────────────────────
-            // Build video constraints: specific device takes priority.
-            // Video Guestbook uses a lower resolution (1080p max) to prevent encoder
-            // lag and stuttering; PhotoBooth uses the highest available for still quality.
-            const isVgMode = appConfig.captureMode === 'videoguestbook';
+        // Video Guestbook uses a lower resolution (1080p max) to prevent encoder
+        // lag and stuttering; PhotoBooth uses the highest available for still quality.
+        const isVgMode = appConfig.captureMode === 'videoguestbook';
 
-            if (isVgMode) {
-                // ── Video Guestbook: defer stream acquisition to per-session start ──
-                // Camera and mic will be opened inside triggerVgSequence() only when
-                // a guest actually begins recording, and released when they return to
-                // the welcome screen.  This keeps the OS indicator light off while idle.
-                $('#admin-dashboard').hide();
-                $('#kiosk-mode').fadeIn(400);
-                window.PB.security.requestFullscreen();
-                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
-                resetToWelcomeScreen();
-            } else {
-                // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
-                const videoConstraints = _pbPhotoConstraints();
-                if (appConfig.selectedCameraId) {
-                    videoConstraints.deviceId = { exact: appConfig.selectedCameraId };
-                }
-                currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
-                window.PB.capture.logTrackSize('[PB] Photo camera', currentStream);
-                $('#camera-feed')[0].srcObject = currentStream;
-                applyKioskViewfinderSize();
-
-                $('#admin-dashboard').hide();
-                $('#kiosk-mode').fadeIn(400);
-                window.PB.security.requestFullscreen();
-                window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
-                resetToWelcomeScreen();
-
-                // Camera-lost watchdog for photo booth
-                currentStream.getVideoTracks().forEach(function(track) {
-                    track.onended = function() {
-                        console.warn('[PB] Camera track ended unexpectedly.');
-                        stopVgRecordingIfActive();
-                        _showCameraLost();
-                    };
-                });
-            }
-            
-        } catch (err) {
-            console.error("Camera error:", err);
-            let hint = '';
-            if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                hint = 'The selected camera was not found. Unplug and replug the USB cable, then tap Refresh in Camera Settings.';
-            } else if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                hint = 'Camera permission was denied. Grant camera access in your browser settings, then try again.';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                hint = 'The camera is in use by another app, or the USB connection dropped. Unplug and replug, close other camera apps, then try again.';
-            } else {
-                hint = err.message;
-            }
-            $('#camera-error-title').text('Camera error: ' + err.name);
-            $('#camera-error-msg').text(hint);
-            $('#camera-error-card').slideDown(200);
-        } finally {
-            launchBtn.prop('disabled', false).html('<i class="fa-solid fa-rocket"></i> Launch Kiosk Mode');
-        }
-    });
-
-    // --- Camera error card dismiss ---
-    $('#btn-camera-error-close').on('click', function() {
-        $('#camera-error-card').slideUp(200);
-    });
-
-    // --- Kiosk PIN admin form ---
-    // Three fields: Current (only if a PIN already exists), New, Confirm. Apply
-    // button verifies the current PIN (when required), checks the new one
-    // matches the confirm, then hashes (PBKDF2 via window.PB.security) and
-    // saves. Raw PINs never persist in appConfig or localStorage.
-
-    function _hasKioskPin() {
-        return !!appConfig.kioskPin && appConfig.kioskPinLen > 0;
-    }
-
-    function _renderPinAdminForm() {
-        $('#kiosk-pin-current-row').toggle(_hasKioskPin());
-        $('#kiosk-pin-status').html(_hasKioskPin()
-            ? '<i class="fa-solid fa-lock"></i> PIN set'
-            : 'No PIN — exit without prompt');
-        // Button label reflects intent: "Remove PIN" when clearing, "Update"
-        // when replacing, "Set PIN" when creating fresh.
-        const newRaw = String($('#kiosk-pin-new').val() || '').trim();
-        let label;
-        if (_hasKioskPin()) {
-            label = newRaw === '' ? 'Remove PIN' : 'Update PIN';
+        if (isVgMode) {
+            // ── Video Guestbook: defer stream acquisition to per-session start ──
+            // Camera and mic will be opened inside triggerVgSequence() only when
+            // a guest actually begins recording, and released when they return to
+            // the welcome screen.  This keeps the OS indicator light off while idle.
+            $('#admin-dashboard').hide();
+            $('#kiosk-mode').fadeIn(400);
+            window.PB.security.requestFullscreen();
+            window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
+            resetToWelcomeScreen();
         } else {
-            label = 'Set PIN';
-        }
-        $('#btn-kiosk-pin-apply').text(label);
-        $('#kiosk-pin-new-label').text(_hasKioskPin() ? 'New PIN' : 'PIN');
-    }
-
-    function _setPinFeedback(msg, kind) {
-        const color = kind === 'error' ? '#dc2626' : kind === 'ok' ? '#16a34a' : '#6b7280';
-        $('#kiosk-pin-feedback').css('color', color).text(msg || '');
-    }
-
-    function _clearPinAdminFields() {
-        $('#kiosk-pin-current').val('');
-        $('#kiosk-pin-new').val('');
-        $('#kiosk-pin-confirm').val('');
-    }
-
-    // Restrict all three PIN fields to digits only (including pasted content;
-    // `inputmode="numeric"` only hints the mobile keyboard, it doesn't enforce).
-    function _sanitizeNumericInput(el) {
-        const cleaned = el.value.replace(/\D/g, '');
-        if (cleaned !== el.value) el.value = cleaned;
-    }
-    $('#kiosk-pin-current, #kiosk-pin-confirm').on('input', function() {
-        _sanitizeNumericInput(this);
-    });
-    // The New field also drives the button label.
-    $('#kiosk-pin-new').on('input', function() {
-        _sanitizeNumericInput(this);
-        _renderPinAdminForm();
-    });
-
-    $('#btn-kiosk-pin-apply').on('click', async function() {
-        const btn = $(this);
-        const currentRaw = String($('#kiosk-pin-current').val() || '').trim();
-        const newRaw     = String($('#kiosk-pin-new').val()     || '').trim();
-        const confirmRaw = String($('#kiosk-pin-confirm').val() || '').trim();
-
-        // Validate new PIN (allow empty = remove).
-        if (newRaw !== '' && !/^\d{4,8}$/.test(newRaw)) {
-            _setPinFeedback('New PIN must be 4–8 digits.', 'error');
-            return;
-        }
-        if (newRaw !== confirmRaw) {
-            _setPinFeedback('New PIN and confirmation do not match.', 'error');
-            return;
-        }
-
-        const hadPinBefore = _hasKioskPin();
-        btn.prop('disabled', true);
-        _setPinFeedback('Verifying…', 'info');
-        try {
-            // When a PIN already exists, verify the current one first.
-            if (hadPinBefore) {
-                if (!currentRaw) {
-                    _setPinFeedback('Enter the current PIN to change it.', 'error');
-                    return;
-                }
-                const result = await window.PB.security.verifyPin(currentRaw, appConfig.kioskPin);
-                if (!result.ok) {
-                    _setPinFeedback('Current PIN is incorrect.', 'error');
-                    return;
-                }
-                // If the existing hash was legacy SHA-256, the verify call
-                // already returned a PBKDF2 hash for us — but we're about to
-                // overwrite it with hashPin(newRaw) anyway, so the migration
-                // is moot in this branch. We still log it for parity.
-                if (result.upgradedHash) {
-                    console.info('[Security] Legacy SHA-256 hash detected during PIN change');
-                }
+            // ── Photo Booth: acquire stream now for the live welcome viewfinder ──
+            const videoConstraints = _pbPhotoConstraints();
+            if (appConfig.selectedCameraId) {
+                videoConstraints.deviceId = { exact: appConfig.selectedCameraId };
             }
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+            window.PB.capture.logTrackSize('[PB] Photo camera', currentStream);
+            $('#camera-feed')[0].srcObject = currentStream;
+            applyKioskViewfinderSize();
 
-            // Apply the new PIN (or clear it).
-            appConfig.kioskPin    = await window.PB.security.hashPin(newRaw);
-            appConfig.kioskPinLen = newRaw.length;
-            saveConfig();
-            _clearPinAdminFields();
-            _renderPinAdminForm();
-            _setPinFeedback(
-                newRaw === '' ? 'PIN removed.' : (hadPinBefore ? 'PIN updated.' : 'PIN set.'),
-                'ok',
-            );
-        } finally {
-            btn.prop('disabled', false);
+            $('#admin-dashboard').hide();
+            $('#kiosk-mode').fadeIn(400);
+            window.PB.security.requestFullscreen();
+            window.PB.audio.setupSinkBeep(appConfig.vgSelectedSpeakerId);
+            resetToWelcomeScreen();
+
+            // Camera-lost watchdog for photo booth
+            currentStream.getVideoTracks().forEach(function(track) {
+                track.onended = function() {
+                    console.warn('[PB] Camera track ended unexpectedly.');
+                    stopVgRecordingIfActive();
+                    _showCameraLost();
+                };
+            });
         }
-    });
+    }
 
     // --- PIN modal logic ---
     // The PIN pad is a React dialog (src/screens/dialogs). verifyPin handles
@@ -1104,62 +109,43 @@ $(document).ready(function() {
         $('#admin-dashboard').fadeIn(400);
     }
 
-    $('#btn-exit-kiosk').on('click', function() {
+    // The hidden Exit Kiosk button on the welcome screen.
+    function requestExit() {
         if (appConfig.kioskPin && appConfig.kioskPinLen > 0) {
             _showPinModal();
         } else {
             _doExitKiosk();
         }
-    });
+    }
 
-    // --- Kiosk Logic (PhotoBooth) ---
-    $('#btn-start-session').on('click', async function() {
-        if (appConfig.disclaimerEnabled) {
-            const accepted = await showDisclaimerDialog(
-                appConfig.disclaimerHeader,
-                appConfig.disclaimerText,
-                appConfig.disclaimerOrg
-            );
-            if (!accepted) return; // session forfeited — do nothing, no saves
+    // --- Starting a session ---
+    // A guest tapped "Leave a Message" (or anywhere on the welcome screen).
+    let _starting = false;
+    async function startSession() {
+        if (_starting) return;
+        _starting = true;
+        try {
+            if (appConfig.disclaimerEnabled) {
+                const accepted = await showDisclaimerDialog(
+                    appConfig.disclaimerHeader,
+                    appConfig.disclaimerText,
+                    appConfig.disclaimerOrg
+                );
+                if (!accepted) return; // session forfeited — do nothing, no saves
+            }
+            window.PB.ui.hideWelcome();
+            const isVg = appConfig.captureMode === 'videoguestbook';
+            setTimeout(isVg ? triggerVgSequence : triggerCaptureSequence, 500);
+        } finally {
+            _starting = false;
         }
-        $('#guest-welcome').addClass('hidden');
-        setTimeout(triggerCaptureSequence, 500);
-    });
+    }
 
-    // --- Kiosk Logic (Video Guestbook) ---
-    $('#btn-start-vg-session').on('click', async function() {
-        if (appConfig.disclaimerEnabled) {
-            const accepted = await showDisclaimerDialog(
-                appConfig.disclaimerHeader,
-                appConfig.disclaimerText,
-                appConfig.disclaimerOrg
-            );
-            if (!accepted) return; // session forfeited — do nothing, no saves
-        }
-        $('#guest-welcome').addClass('hidden');
-        setTimeout(triggerVgSequence, 500);
-    });
-
-    // Prompts preview (a React screen: src/screens/guest-flow)
-    $('#btn-show-prompts-preview').on('click', function(e) {
-        e.stopPropagation();
-        const disabled = appConfig.vgDisabledTemplatePrompts;
-        const prompts = [
-            ...(PROMPT_TEMPLATES[appConfig.vgPromptCategory] || []).filter(function(q) { return disabled.indexOf(q) === -1; }),
-            ...appConfig.vgCustomPrompts.filter(function(p) { return p.enabled; }).map(function(p) { return p.text; })
-        ];
-        window.PB.ui.showPromptsPreview(prompts);
-    });
-
-    // Tap anywhere on the welcome screen to start (not just the small button)
-    $('#guest-welcome').on('click', function(e) {
-        if ($(e.target).closest('#btn-exit-kiosk, #btn-start-session, #btn-start-vg-session, #btn-show-prompts-preview, .welcome-vg-panel').length) return;
-        if (appConfig.captureMode === 'videoguestbook') {
-            $('#btn-start-vg-session').trigger('click');
-        } else {
-            $('#btn-start-session').trigger('click');
-        }
-    });
+    window.PB.kiosk = {
+        launch: launchKiosk,
+        startSession: startSession,
+        requestExit: requestExit,
+    };
 
     // Lock scroll/pinch-zoom inside kiosk (prevents accidental browser gestures)
     document.getElementById('kiosk-mode').addEventListener('touchmove', function(e) {
@@ -1169,11 +155,7 @@ $(document).ready(function() {
     // If fullscreen is exited while kiosk is active (e.g. Escape key), treat it as Exit button press
     document.addEventListener('fullscreenchange', function() {
         if (!document.fullscreenElement && $('#kiosk-mode').is(':visible')) {
-            if (appConfig.kioskPin && appConfig.kioskPinLen > 0) {
-                _showPinModal();
-            } else {
-                _doExitKiosk();
-            }
+            requestExit();
         }
     });
 
@@ -1211,12 +193,6 @@ $(document).ready(function() {
         viewfinder.style.height = h + 'px';
     }
 
-    function _getVgPanelSubtitle() {
-        const name = (appConfig.vgCoupleName || '').trim();
-        if (name) return 'Answer just a few questions on video for ' + name + '.';
-        return appConfig.vgPromptText || 'Share a message for the happy couple!';
-    }
-
     function resetToWelcomeScreen() {
         // Hide capture screens
         $('#photo-canvas').hide();
@@ -1227,29 +203,9 @@ $(document).ready(function() {
         $('#live-booth').hide();
         $('#vg-booth').hide();
 
-        // Show the correct layout for the active mode
+        // The welcome screen itself is React (src/screens/welcome).
         const isVg = appConfig.captureMode === 'videoguestbook';
-        $('#welcome-photo-content, #welcome-photo-action').toggle(!isVg);
-        $('#btn-start-session').toggle(!isVg);
-        if (isVg) {
-            $('#welcome-vg-panel').css('display', 'flex');
-            $('#live-ws-title-vg').text(appConfig.vgPanelTitle || 'Raise a Toast!');
-            $('#live-ws-subtitle-vg').text(_getVgPanelSubtitle());
-            $('#btn-show-prompts-preview').toggle(!!appConfig.vgPromptsEnabled);
-        } else {
-            $('#welcome-vg-panel').hide();
-            $('#live-ws-subtitle').text(appConfig.welcomeSubtitle || $('#edit-subtitle').val());
-        }
-
-        // Show recent captures button if there are any captures
-        $('#btn-recent-captures').toggle(window.PB.captures.count() > 0);
-
-        $('#guest-welcome').removeClass('hidden');
-        // Resume welcome video if it was paused
-        const kv = $('#ws-video-bg')[0];
-        if (kv && appConfig.welcomeMedia && appConfig.welcomeMedia.type === 'video' && kv.paused) {
-            kv.play();
-        }
+        window.PB.ui.showWelcome();
 
         // Release camera + mic for VG mode so the OS indicator light goes off
         // while the kiosk is idle.  The stream is re-acquired per session inside
@@ -1258,13 +214,6 @@ $(document).ready(function() {
             _releaseVgStream();
         }
     }
-
-    // ==================== RECENT CAPTURES KIOSK MODAL ====================
-    // The window itself is React (src/screens/galleries).
-    $('#btn-recent-captures').on('click', function(e) {
-        e.stopPropagation();
-        window.PB.ui.showRecentCaptures();
-    });
 
     // (DRIVE: making session folders public is handled by window.PB.drive.)
 
@@ -1593,11 +542,7 @@ $(document).ready(function() {
         // Show question prompt if enabled
         let _activePromptText = null;
         if (appConfig.vgPromptsEnabled) {
-            const _disabled = appConfig.vgDisabledTemplatePrompts;
-            const _prompts = [
-                ...(PROMPT_TEMPLATES[appConfig.vgPromptCategory] || []).filter(function(q) { return _disabled.indexOf(q) === -1; }),
-                ...appConfig.vgCustomPrompts.filter(function(p) { return p.enabled; }).map(function(p) { return p.text; })
-            ];
+            const _prompts = window.PB.prompts.enabled();
             if (_prompts.length > 0) {
                 // On redo reuse the same prompt; otherwise pick randomly
                 _activePromptText = opts.promptText || _prompts[Math.floor(Math.random() * _prompts.length)];
@@ -2262,118 +1207,6 @@ $(document).ready(function() {
         }, previewMs);
     }
 
-    function updateTemplateSizeHint() {
-        const layout = $('input[name="layout"]:checked').val() || appConfig.layout;
-        const def = LAYOUT_DEFS[layout] || LAYOUT_DEFS['4x6-1'];
-        const paper = PAPER_SIZES[def.paper];
-        const sizeStr = def.pW + ' × ' + def.pH + ' px';
-        $('#hint-layout-name').text(def.name);
-        $('#hint-canvas-size').text(sizeStr);
-        $('#hint-paper').text(paper ? paper.selphy : '');
-        $('#bg-size-hint').text(sizeStr);
-        $('#template-canvas-label').text(def.name);
-        drawTemplatePreview();
-    }
-
-    function drawTemplatePreview() {
-        const canvas = document.getElementById('template-preview-canvas');
-        if (!canvas) return;
-        const layout = $('input[name="layout"]:checked').val() || appConfig.layout;
-        const def = LAYOUT_DEFS[layout] || LAYOUT_DEFS['4x6-1'];
-        // Scale down to 260px tall
-        const maxH  = 260;
-        const scale = maxH / def.pH;
-        canvas.width  = Math.round(def.pW * scale);
-        canvas.height = maxH;
-        const ctx = canvas.getContext('2d');
-        // Background
-        if (appConfig.templateBg) {
-            ctx.drawImage(appConfig.templateBg, 0, 0, canvas.width, canvas.height);
-        } else {
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-        // Geometry (mirrors computeLayout, scaled)
-        const pad     = Math.round(def.pW * 0.05  * scale);
-        const gap     = Math.round(def.pW * 0.025 * scale);
-        const footerH = Math.round(def.pH * 0.15  * scale);  // polaroid footer zone
-        const photoZoneW = canvas.width  - 2 * pad;
-        const photoZoneH = canvas.height - 2 * pad - footerH;
-        const maxPhotoW  = Math.floor((photoZoneW - gap * (def.cols - 1)) / def.cols);
-        const maxPhotoH  = Math.floor((photoZoneH - gap * (def.rows - 1)) / def.rows);
-        const slotW  = (def.square === false) ? maxPhotoW : Math.min(maxPhotoW, maxPhotoH);
-        const slotH  = (def.square === false) ? maxPhotoH : slotW;
-        const gridW  = slotW * def.cols + gap * (def.cols - 1);
-        const gridH  = slotH * def.rows + gap * (def.rows - 1);
-        const startX = Math.round((canvas.width  - gridW) / 2);
-        const startY = Math.round(pad + (photoZoneH - gridH) / 2);
-        // Photo slot placeholders
-        const bgColors = ['#e2e8f0', '#f1f5f9', '#dde6ef', '#eef2f6'];
-        let si = 0;
-        for (let r = 0; r < def.rows; r++) {
-            for (let c = 0; c < def.cols; c++, si++) {
-                const px = startX + c * (slotW + gap);
-                const py = startY + r * (slotH + gap);
-                ctx.fillStyle = bgColors[si % bgColors.length];
-                ctx.fillRect(px, py, slotW, slotH);
-                ctx.fillStyle = '#94a3b8';
-                ctx.font = Math.max(8, Math.round(slotW * 0.38)) + 'px serif';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText('📷', px + slotW / 2, py + slotH / 2);
-            }
-        }
-        // Footer zone indicator (dashed line + tint when no background is loaded)
-        const footerY = canvas.height - footerH;
-        if (!appConfig.templateBg) {
-            ctx.fillStyle = 'rgba(148,163,184,0.12)';
-            ctx.fillRect(0, footerY, canvas.width, footerH);
-        }
-        ctx.save();
-        ctx.strokeStyle = 'rgba(148,163,184,0.5)';
-        ctx.lineWidth = 1;
-        ctx.setLineDash([3, 3]);
-        ctx.beginPath();
-        ctx.moveTo(0, footerY);
-        ctx.lineTo(canvas.width, footerY);
-        ctx.stroke();
-        ctx.restore();
-        ctx.textBaseline = 'alphabetic';
-    }
-
-    // (Audio beeps, BT sink routing, and speaker test live in window.PB.audio.)
-
-    $('#btn-test-speaker').on('click', function() {
-        window.PB.audio.testSpeakerOutput(appConfig.vgSelectedSpeakerId);
-    });
-
-    $('#btn-grant-audio-output').on('click', async function() {
-        if (typeof navigator.mediaDevices.selectAudioOutput !== 'function') {
-            $(this).hide();
-            return;
-        }
-        const btn = $(this);
-        btn.prop('disabled', true).text('Opening picker…');
-        try {
-            const device = await navigator.mediaDevices.selectAudioOutput();
-            appConfig.vgSelectedSpeakerId = device.deviceId;
-            await window.PB.devices.populateAudioDeviceList();
-            // Re-select the device that was just granted
-            const spkSel = document.getElementById('vg-speaker-select');
-            if ([...spkSel.options].some(o => o.value === device.deviceId)) {
-                spkSel.value = device.deviceId;
-                appConfig.vgSelectedSpeakerId = device.deviceId;
-            }
-            saveConfig();
-        } catch (e) {
-            if (e.name !== 'AbortError') {
-                const diag = document.getElementById('vg-audio-diag');
-                if (diag) diag.innerHTML += `<span style="color:#dc2626; display:block;"><i class="fa-solid fa-triangle-exclamation"></i> ${e.message}</span>`;
-            }
-        } finally {
-            btn.prop('disabled', false).html('<i class="fa-solid fa-key"></i> Grant Bluetooth Access');
-        }
-    });
     // =========================================================
 
     function runCountdown(seconds) {
@@ -2414,160 +1247,5 @@ $(document).ready(function() {
 
     // (Dashboard gallery, "View all" and the lightbox are React: src/screens/galleries.)
 
-    // --- Event Name handlers ---
-    function _updateFilenamePreview() {
-        const name = appConfig.eventName || 'photobooth';
-        const safe = name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'photobooth';
-        $('#filename-preview').text(safe + '_YYYYMMDD_HHMMSS.png');
-    }
-
-    // Show/hide inline warning below the event name field when Drive is on but name is empty
-    function _updateEventNameWarnings() {
-        const needsName = (appConfig.saveDrive || appConfig.vgSaveDrive) && !appConfig.eventName;
-        $('#event-name-drive-warning').toggle(needsName);
-        $('#event-name-input').toggleClass('input-required-highlight', needsName);
-    }
-    $('#event-name-input').on('input', function() {
-        appConfig.eventName = this.value.trim();
-        $('#event-name-input').val(appConfig.eventName);
-        // Drive client invalidates its event-folder cache automatically when
-        // it next reads the event name; tell it now so any in-flight session
-        // folder is also reset.
-        window.PB.drive.invalidateFolders();
-        _updateFilenamePreview();
-        _updateEventNameWarnings();
-    });
-
-    // ─── LIVE GALLERY VIEWER (host-side wiring) ──────────────────────────────
-    // PeerJS host, broadcast queue, video-thumb generation, and viewer-mode
-    // bootstrap all live in window.PB.liveViewer (src/lib/live-viewer).
-
-    $('#btn-lv-start').on('click', () => window.PB.liveViewer.host.start());
-    $('#btn-lv-stop').on('click', () => window.PB.liveViewer.host.stop());
-    $('#lv-network-addr').on('input', function() {
-        appConfig.lvNetworkAddr = $(this).val().trim();
-    });
-
-    // (Viewer-mode bootstrap lives in window.PB.liveViewer via LiveViewerClient.tryStart() in src/main.ts.)
-
-
-    // ── Sync all UI controls to the loaded appConfig ──────────────────────────
-    // Called once after all event handlers are wired so that the DOM reflects
-    // whatever was restored from localStorage.
-    function syncUIFromConfig() {
-
-        // Layout radio
-        $('input[name="layout"][value="' + appConfig.layout + '"]').prop('checked', true);
-        updateTemplateSizeHint();
-
-        // Capture settings are Video Guestbook-only.
-        const capEl = document.getElementById('cap-tab-videoguestbook');
-        if (capEl) capEl.style.display = '';
-        updateAdvancedNavForMode(appConfig.captureMode);
-
-        // Event name
-        $('#event-name-input').val(appConfig.eventName);
-        if (appConfig.eventName) {
-            const prefix = appConfig.eventName.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
-            $('#filename-preview').text(prefix + '_YYYYMMDD_HHMMSS.png');
-        }
-
-        // Kiosk PIN — fields are always empty (we only store the hash); the
-        // helper toggles the Current-PIN row and contextual button label.
-        _clearPinAdminFields();
-        _renderPinAdminForm();
-        _setPinFeedback('');
-
-        // Countdown sliders
-        $('#setting-cd-1').val(appConfig.countdownFirst);
-        $('#val-cd-1').text(appConfig.countdownFirst);
-        $('#setting-cd-others').val(appConfig.countdownOthers);
-        $('#val-cd-others').text(appConfig.countdownOthers);
-        $('#setting-review').val(appConfig.reviewTime);
-        $('#val-review').text(appConfig.reviewTime);
-
-        // Welcome screen
-        $('#edit-bg-color').val(appConfig.welcomeBg);
-        $('#color-hex').text(appConfig.welcomeBg);
-        // Legacy welcomeTitle / welcomeSubtitle inputs are hidden in the UI but
-        // keep their values populated for safety in case future code reads them.
-        $('#edit-title').val(appConfig.welcomeTitle);
-        $('#edit-subtitle').val(appConfig.welcomeSubtitle);
-        $('#live-ws-title').text(appConfig.welcomeTitle);
-        $('#live-ws-subtitle').text(appConfig.welcomeSubtitle);
-        // Active welcome controls (VG-first design).
-        const vgTitle = appConfig.vgPanelTitle || 'Raise a Toast!';
-        const vgSubtitle = _getVgPanelSubtitle();
-        $('#edit-vg-panel-title').val(vgTitle);
-        $('#edit-vg-couple-name').val(appConfig.vgCoupleName || '');
-        $('#vg-couple-name-preview').text(appConfig.vgCoupleName || 'Ken & Alexa');
-        $('#live-ws-title-vg').text(vgTitle);
-        $('#live-ws-subtitle-vg').text(vgSubtitle);
-        $('#prev-vg-title').text(vgTitle);
-        $('#prev-vg-subtitle').text(vgSubtitle);
-        $('#prev-vg-prompts-chip').toggle(!!appConfig.vgPromptsEnabled);
-        if (!appConfig.welcomeMedia) {
-            $('#designer-preview, #guest-welcome').css('background-color', appConfig.welcomeBg);
-        }
-
-        // Photo mode toggle
-        $('#toggle-photo-mode').prop('checked', appConfig.photoMode)
-            .closest('.toggle-switch').toggleClass('is-on', appConfig.photoMode);
-        $('#toggle-photo-label').text(appConfig.photoMode ? 'ON' : 'OFF');
-
-        // Storage — Photo Booth
-        $('#chk-save-local').prop('checked', appConfig.saveLocal);
-        $('#chk-save-drive').prop('checked', appConfig.saveDrive);
-
-        // Camera — Photo Booth
-        $('#camera-specific-card').toggle(true);
-        if (appConfig.selectedCameraId) $('#camera-select').val(appConfig.selectedCameraId);
-
-        // VG settings
-        $('#setting-vg-duration').val(appConfig.vgMaxDuration);
-        $('#val-vg-duration').text(appConfig.vgMaxDuration);
-        $('#setting-vg-countdown').val(appConfig.vgCountdown);
-        $('#val-vg-countdown').text(appConfig.vgCountdown);
-        $('#setting-vg-prompt').val(appConfig.vgPromptText);
-        $('#vg-camera-specific-card').show();
-        if (appConfig.vgSelectedCameraId) $('#vg-camera-select').val(appConfig.vgSelectedCameraId);
-
-        // VG storage
-        $('#chk-vg-save-local').prop('checked', appConfig.vgSaveLocal);
-        $('#vg-local-folder-config').toggle(appConfig.vgSaveLocal);
-        $('#chk-vg-save-drive').prop('checked', appConfig.vgSaveDrive);
-        $('#vg-drive-config').toggle(appConfig.vgSaveDrive);
-        $('#vg-drive-folder-name').val(appConfig.vgDriveFolderName);
-        if (appConfig.vgDriveClientId) $('#vg-drive-client-id').val(appConfig.vgDriveClientId);
-
-        // VG prompts — category button (toggle/list handled by initVgPrompts above)
-        $('.prompt-cat-btn').removeClass('active');
-        $('.prompt-cat-btn[data-cat="' + appConfig.vgPromptCategory + '"]').addClass('active');
-
-        // VG prompts — splash screen duration
-        $('#setting-vg-splash-duration').val(appConfig.vgSplashDuration);
-        $('#val-vg-splash-duration').text(appConfig.vgSplashDuration);
-
-        // Photo Booth splash screen
-        $('#setting-pb-splash-duration').val(appConfig.pbSplashDuration);
-        $('#val-pb-splash-duration').text(appConfig.pbSplashDuration);
-
-        // VG thank you duration (toggle handled by initVgThankYou above)
-        $('#setting-ty-duration').val(appConfig.vgThankYouDuration);
-        $('#val-ty-duration').text(appConfig.vgThankYouDuration);
-
-        // Live Viewer network address
-        $('#lv-network-addr').val(appConfig.lvNetworkAddr || '');
-
-        _updateEventNameWarnings();
-    }
-
-    syncUIFromConfig();
-
-    // Auto-save on any admin UI input change (covers text, checkboxes, radios, selects, sliders)
-    $(document).on('change input',
-        '#admin-dashboard input, #admin-dashboard select, #admin-dashboard textarea',
-        _scheduleSave
-    );
 
 });
