@@ -240,7 +240,7 @@
     font-size: 1.5rem !important;
   }
 
-  #pin-overlay .kiosk-card > div[style*="grid"] {
+  #pin-overlay .pin-keys {
     gap: var(--space-2) !important;
     margin-bottom: 0 !important;
   }

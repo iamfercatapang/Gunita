@@ -490,22 +490,11 @@ $(document).ready(function() {
         $('#val-pb-splash-duration').text(appConfig.pbSplashDuration);
     })();
 
-    // Opens the disclaimer modal; resolves true (accepted) or false (rejected)
+    // Opens the disclaimer (a React dialog); resolves true if accepted.
     function showDisclaimerDialog(header, text, org) {
-        return new Promise(resolve => {
-            const rendered = _renderDisclaimerText(text, org);
-            $('#disclaimer-modal-title').text(header || 'Do you agree with the terms?');
-            // Convert newlines to paragraphs
-            const html = rendered.split(/\n\n+/).map(p => `<p>${$('<div>').text(p.trim()).html()}</p>`).join('');
-            $('#disclaimer-modal-body').html(html);
-            $('#disclaimer-overlay').css('display', 'flex');
-
-            function cleanup() {
-                $('#disclaimer-overlay').hide();
-                $('#btn-disclaimer-accept, #btn-disclaimer-reject').off('click.disc');
-            }
-            $('#btn-disclaimer-accept').one('click.disc', function() { cleanup(); resolve(true); });
-            $('#btn-disclaimer-reject').one('click.disc', function() { cleanup(); resolve(false); });
+        return window.PB.ui.askDisclaimer({
+            header: header,
+            text: _renderDisclaimerText(text, org),
         });
     }
 
@@ -901,6 +890,7 @@ $(document).ready(function() {
         const launchBtn = $(this);
         launchBtn.prop('disabled', true).text('Initializing Hardware...');
         window.PB.devices.stopAllCameraTests(); // release any preview streams before launching
+        window.PB.ui.preload(); // load the PIN pad and disclaimer before a guest needs them
 
         try {
         // ── getUserMedia path ─────────────────────────────────────────────
@@ -1081,28 +1071,31 @@ $(document).ready(function() {
     });
 
     // --- PIN modal logic ---
-    let _pinBuffer = '';
-
-    function _renderPinDisplay() {
-        const len = _pinBuffer.length;
-        const max = Math.max(len, 4);
-        $('#pin-display').text(Array.from({ length: max }, (_, i) => i < len ? '●' : '–').join(''));
+    // The PIN pad is a React dialog (src/screens/dialogs). verifyPin handles
+    // both PBKDF2 and legacy SHA-256, and returns an upgraded hash on a legacy
+    // match so we can transparently migrate the storage.
+    async function _checkPin(pin) {
+        const result = await window.PB.security.verifyPin(pin, appConfig.kioskPin);
+        if (result.ok && result.upgradedHash) {
+            appConfig.kioskPin = result.upgradedHash;
+            saveConfig();
+            console.info('[Security] PIN hash migrated from SHA-256 to PBKDF2');
+        }
+        return result.ok;
     }
 
-    function _showPinModal() {
-        _pinBuffer = '';
-        _renderPinDisplay();
-        $('#pin-error').hide();
-        $('#pin-overlay').css('display', 'flex');
-    }
-
-    function _hidePinModal() {
-        $('#pin-overlay').hide();
+    async function _showPinModal() {
+        const unlocked = await window.PB.ui.askPin({
+            length: appConfig.kioskPinLen,
+            check: _checkPin,
+        });
+        if (unlocked) _doExitKiosk();
     }
 
     // (Fullscreen helpers live in window.PB.security.)
 
     function _doExitKiosk() {
+        window.PB.ui.closeAll();
         stopVgRecordingIfActive();
         if (currentStream) { currentStream.getTracks().forEach(track => track.stop()); currentStream = null; }
         window.PB.audio.teardownSinkBeep();
@@ -1118,40 +1111,6 @@ $(document).ready(function() {
             _showPinModal();
         } else {
             _doExitKiosk();
-        }
-    });
-
-    $('#btn-pin-cancel').on('click', _hidePinModal);
-
-    $('#btn-pin-del').on('click', function() {
-        _pinBuffer = _pinBuffer.slice(0, -1);
-        _renderPinDisplay();
-        $('#pin-error').hide();
-    });
-
-    // Compare entered digits against stored hash once enough digits entered.
-    // verifyPin handles both PBKDF2 and legacy SHA-256, and returns an upgraded
-    // hash on a legacy match so we can transparently migrate the storage.
-    $(document).on('click', '.pin-key[data-k]', async function() {
-        if (_pinBuffer.length >= 8) return;
-        _pinBuffer += $(this).data('k').toString();
-        _renderPinDisplay();
-        $('#pin-error').hide();
-        if (_pinBuffer.length >= appConfig.kioskPinLen && appConfig.kioskPinLen > 0) {
-            const result = await window.PB.security.verifyPin(_pinBuffer, appConfig.kioskPin);
-            if (result.ok) {
-                if (result.upgradedHash) {
-                    appConfig.kioskPin = result.upgradedHash;
-                    saveConfig();
-                    console.info('[Security] PIN hash migrated from SHA-256 to PBKDF2');
-                }
-                _hidePinModal();
-                _doExitKiosk();
-            } else {
-                $('#pin-error').show();
-                _pinBuffer = '';
-                _renderPinDisplay();
-            }
         }
     });
 

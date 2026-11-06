@@ -16,6 +16,7 @@ import type { DeviceManager } from '../lib/devices';
 import type { DriveClient } from '../lib/drive';
 import type { LiveViewerHost } from '../lib/live-viewer';
 import type { KioskSecurity } from '../lib/security';
+import type { AskDisclaimerOptions, AskPinOptions } from '../screens/dialogs';
 import type { AppConfig } from '../state/app-state';
 
 declare global {
@@ -94,6 +95,17 @@ declare global {
         ) => Promise<LocalSaveTarget>;
         downloadBlob: (blob: Blob, filename: string) => void;
         deviceStore: typeof deviceStore;
+      };
+      /** React kiosk dialogs (src/screens/dialogs), loaded on first use. */
+      ui: {
+        /** Start loading the dialogs chunk so the first one opens instantly. */
+        preload: () => void;
+        /** Resolves true once the right PIN is entered, false if cancelled. */
+        askPin: (opts: AskPinOptions) => Promise<boolean>;
+        /** Resolves true if the guest accepts, false if they reject. */
+        askDisclaimer: (opts: AskDisclaimerOptions) => Promise<boolean>;
+        /** Close any open dialog as cancelled. */
+        closeAll: () => void;
       };
     };
   }
